@@ -62,6 +62,14 @@ type Reference struct {
 	// that lexically encloses the reference, or empty when the reference is at
 	// file scope.
 	ContainingSymbol string `json:"containing_symbol"`
+
+	// Call-site signature metadata — additive, zero-value defaults preserve
+	// backward compatibility with v2 indexes (all tags use omitempty).
+	// ArgCount is the number of arguments at a call site; ArgTypes lists the
+	// normalized literal type of each argument ("string", "int", "float",
+	// "bool", "null", "unknown"). Populated only for RefCall references.
+	ArgCount int      `json:"arg_count,omitempty"`
+	ArgTypes []string `json:"arg_types,omitempty"`
 }
 
 // ReferenceExtractor extracts references for a single language.

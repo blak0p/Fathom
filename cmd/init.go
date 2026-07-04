@@ -274,7 +274,7 @@ func writeMetadata(store db.Store, commitHash string, indexedFiles []string) err
 	}
 
 	meta := []struct{ key, value string }{
-		{"schema_version", "2"},
+		{"schema_version", db.CurrentSchemaVersion},
 		{"commit_hash", commitHash},
 		{"indexed_at", time.Now().UTC().Format(time.RFC3339)},
 		{"indexed_files", string(filesJSON)},

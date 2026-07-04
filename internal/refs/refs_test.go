@@ -1,6 +1,7 @@
 package refs
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 
@@ -150,7 +151,7 @@ func TestExtractAllWithMock(t *testing.T) {
 	if !ok {
 		t.Fatalf("ExtractAll result missing \"go\" key")
 	}
-	if len(goRefs) != 1 || goRefs[0] != want[0] {
+	if len(goRefs) != 1 || !reflect.DeepEqual(goRefs[0], want[0]) {
 		t.Fatalf("ExtractAll go refs = %+v, want %+v", goRefs, want)
 	}
 }

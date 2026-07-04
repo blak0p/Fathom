@@ -9,6 +9,8 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
@@ -29,6 +31,6 @@ the analysis commands to ask what a given change actually touches.`,
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		// cobra already prints the error; exit non-zero without duplicating it.
-		_ = err
+		os.Exit(1)
 	}
 }

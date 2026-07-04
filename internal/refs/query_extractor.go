@@ -221,13 +221,25 @@ func (e *queryExtractor) ExtractReferences(root *tspack.Node, source []byte) ([]
 		container := containingSymbol(defs, refNode)
 
 		pos := refNode.StartPosition()
-		refs = append(refs, Reference{
+		r := Reference{
 			SymbolName:       name,
 			Kind:             refKind,
 			SourceLine:       int(pos.Row) + 1,
 			SourceCol:        int(pos.Column) + 1,
 			ContainingSymbol: container,
-		})
+		}
+
+		// For call references, extract the argument count and normalized
+		// literal types from the call node's `arguments` child. Non-call
+		// references (type uses, import uses, var reads) carry no argument
+		// metadata and leave the zero values in place.
+		if refKind == RefCall {
+			argCount, argTypes := extractArgs(refNode, source)
+			r.ArgCount = argCount
+			r.ArgTypes = argTypes
+		}
+
+		refs = append(refs, r)
 	}
 
 	// Sort by (line, col) so output is stable across runs and easy to assert
@@ -351,10 +363,130 @@ func lookupDefName(defs []defEntry, id uintptr) string {
 	return ""
 }
 
+// extractArgs walks the `arguments` child of a call expression and returns
+// (ArgCount, ArgTypes). ArgCount is the number of argument children; ArgTypes
+// is the normalized literal type of each argument, one of: "string", "int",
+// "float", "bool", "null", "unknown".
+//
+// refNode is the node captured by the @reference.call pattern. Depending on
+// the grammar, this may be either the called identifier or the enclosing
+// call expression. We locate the call expression by checking refNode and its
+// parent for an `arguments` named child (the canonical call-expression marker
+// across grammars), then walk each argument child and classify it by node
+// kind.
+//
+// Normalization is purely syntactic (switch on node kind) so it is fast and
+// does not require semantic resolution. Variables, expressions, and
+// composite literals all collapse to "unknown" — only literal arguments
+// receive a concrete type, matching the spec's requirement that the
+// mismatch engine compare literal types against declared parameter types.
+func extractArgs(refNode *tree_sitter.Node, source []byte) (int, []string) {
+	if refNode == nil {
+		return 0, nil
+	}
+
+	callNode := findCallExpr(refNode)
+	if callNode == nil {
+		return 0, nil
+	}
+	argsNode := callNode.ChildByFieldName("arguments")
+	if argsNode == nil {
+		return 0, nil
+	}
+
+	count := argsNode.NamedChildCount()
+	if count == 0 {
+		return 0, nil
+	}
+
+	argCount := 0
+	argTypes := make([]string, 0, count)
+	for i := uint(0); i < count; i++ {
+		arg := argsNode.NamedChild(i)
+		if arg == nil {
+			continue
+		}
+		argCount++
+		argTypes = append(argTypes, classifyArgType(arg.Kind()))
+	}
+	return argCount, argTypes
+}
+
+// findCallExpr locates the call expression node carrying an `arguments` named
+// child, starting from refNode and walking up to its parent. tags.scm
+// @reference.call captures sometimes point at the called identifier rather
+// than the call expression itself, so we may need to look at the parent to
+// find the node that exposes the `arguments` field.
+func findCallExpr(refNode *tree_sitter.Node) *tree_sitter.Node {
+	if refNode == nil {
+		return nil
+	}
+	if refNode.ChildByFieldName("arguments") != nil {
+		return refNode
+	}
+	if p := refNode.Parent(); p != nil && p.ChildByFieldName("arguments") != nil {
+		return p
+	}
+	return nil
+}
+
+// classifyArgType maps a tree-sitter argument node kind to a normalized
+// literal type string. The mapping covers the canonical literal kinds across
+// the bundled grammars; any kind not listed is treated as "unknown" so the
+// mismatch engine only flags mismatches between concrete literal types and
+// declared parameter types.
+func classifyArgType(kind string) string {
+	switch kind {
+	// String literals.
+	case
+		"string",                       // TS/JS/PHP/Ruby
+		"string_literal",                // Java/C++
+		"interpreted_string_literal",   // Go
+		"raw_string_literal",            // Go backtick strings
+		"string_content",                // some grammars
+		"heredoc_body",                  // PHP/Ruby
+		"concatenated_string":           // Python implicit concat
+		return "string"
+
+	// Integer literals.
+	case
+		"integer",                      // TS/JS
+		"integer_literal",              // Java/C++/Python
+		"int_literal",                  // Go
+		"decimal_integer_literal",      // TS/JS
+		"hex_integer_literal",          // TS/JS
+		"octal_integer_literal",        // TS/JS
+		"number":                       // some grammars use this for int
+		return "int"
+
+	// Float literals.
+	case
+		"float",                        // TS/JS
+		"float_literal",                 // Java/C++/Python
+		"float_literal_specifier",       // Go
+		"decimal_floating_point_literal": // TS/JS
+		return "float"
+
+	// Boolean literals.
+	case
+		"true", "false",                // TS/JS/Python/Ruby
+		"boolean":                       // some grammars
+		return "bool"
+
+	// Null / nil / None.
+	case
+		"null", "undefined",            // TS/JS
+		"nil",                           // Go/Ruby
+		"none",                          // Python
+		"nullptr",                       // C++
+		"null_literal":                  // Java
+		return "null"
+	}
+	return "unknown"
+}
+
 // bundledQueryLanguages is the set of languages for which the language pack
 // ships a tags.scm. We register a queryExtractor for each at package init()
-// time so callers that import internal/refs automatically get every bundled
-// language available via Get/Languages/ExtractAll.
 //
 // The set is intentionally curated (not derived from AvailableLanguages at
 // init) because some pack languages ship no tags.scm at all, and registering

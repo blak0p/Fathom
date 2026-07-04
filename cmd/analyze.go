@@ -14,12 +14,15 @@ import (
 	"github.com/Fathom/internal/diff"
 	"github.com/Fathom/internal/git"
 	"github.com/Fathom/internal/impact"
+	"github.com/Fathom/internal/mismatch"
 	"github.com/Fathom/internal/parser"
+	"github.com/Fathom/internal/symbol"
 )
 
 var (
-	jsonOutput bool
-	baseBranch string
+	jsonOutput     bool
+	baseBranch     string
+	failOnMismatch bool
 )
 
 // analyzeCmd implements "fathom analyze": compute the blast radius of changes
@@ -31,9 +34,15 @@ var analyzeCmd = &cobra.Command{
 
 It looks up which symbols are defined in each file, then calculates the
 transitive closure of everything that references those symbols — directly
-or indirectly. The output is a human-readable report (or JSON with --json).
+or indirectly. It also runs signature mismatch detection: call sites whose
+argument count or literal types no longer match the changed declaration, and
+overriding methods whose signature diverges from the parent. The output is a
+human-readable report (or JSON with --json).
 
-Requires a .fathom/index.bolt built with Fathom v2+. Run 'fathom init' first.`,
+By default mismatches are printed as advisory warnings (exit code 0). Pass
+--fail-on-mismatch to exit with code 1 when any signature mismatch is found.
+
+Requires a .fathom/index.bolt built with Fathom v3+. Run 'fathom init' first.`,
 	Args: cobra.ArbitraryArgs,
 	RunE: runAnalyze,
 }
@@ -41,6 +50,7 @@ Requires a .fathom/index.bolt built with Fathom v2+. Run 'fathom init' first.`,
 func init() {
 	analyzeCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output report as JSON")
 	analyzeCmd.Flags().StringVar(&baseBranch, "base", "", "Base branch to compare against")
+	analyzeCmd.Flags().BoolVar(&failOnMismatch, "fail-on-mismatch", false, "Exit with code 1 when signature mismatches are detected")
 	rootCmd.AddCommand(analyzeCmd)
 }
 
@@ -75,6 +85,13 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 	}
 
 	var changedSymbols []string
+
+	// workspaceDefs holds definitions from the working tree for changed
+	// symbols. It is non-nil only in --base mode and is passed to the
+	// mismatch engine so it compares the NEW (workspace) definitions
+	// against the STORED (base branch) references, detecting mismatches
+	// introduced by the current changes.
+	var workspaceDefs map[string][]symbol.Symbol
 
 	if len(args) > 0 {
 		// Resolve changed symbols from input files.
@@ -131,9 +148,31 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		// Build workspace definitions for mismatch detection against
+		// base-branch references. This enables detecting new mismatches
+		// introduced by the workspace changes rather than only pre-existing ones.
+		workspaceDefs = make(map[string][]symbol.Symbol)
+		for _, diffItem := range diffs {
+			if diffItem.Status == git.StatusDeleted {
+				continue
+			}
+			syms, err := p.ParseFile(diffItem.Path)
+			if err != nil {
+				if strings.Contains(err.Error(), "unsupported file extension") {
+					continue
+				}
+				return fmt.Errorf("analyze: parse workspace file for mismatch: %w", err)
+			}
+			for _, sym := range syms {
+				if sym.Kind == symbol.KindFunction && nameSet[sym.Name] {
+					workspaceDefs[sym.Name] = append(workspaceDefs[sym.Name], sym)
+				}
+			}
+		}
+
 		if len(changedSymbols) == 0 {
 			if jsonOutput {
-				return outputJSON(impact.BlastResult{}, nil)
+				return outputJSON(impact.BlastResult{}, nil, nil, failOnMismatch)
 			}
 			fmt.Println("No changed symbols found.")
 			return nil
@@ -147,11 +186,37 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("analyze: %w", err)
 	}
 
+	// Run signature mismatch detection over the changed symbols. The
+	// mismatch engine is a parallel pass to the blast radius: it compares
+	// call sites and overrides against the definitions. When workspaceDefs
+	// is set (--base mode), the engine uses the NEW (workspace) definitions
+	// against the STORED (base branch) references, detecting mismatches
+	// introduced by the current changes.
+	mmEngine := mismatch.New(store)
+	if workspaceDefs != nil {
+		mmEngine.SetWorkspaceDefs(workspaceDefs)
+	}
+	mismatches, err := mmEngine.Detect(changedSymbols)
+	if err != nil {
+		return fmt.Errorf("analyze: mismatch detection: %w", err)
+	}
+
 	// Output.
 	if jsonOutput {
-		return outputJSON(result, changedSymbols)
+		return outputJSON(result, changedSymbols, mismatches, failOnMismatch)
 	}
-	return outputHuman(result, changedSymbols)
+	if err := outputHuman(result, changedSymbols); err != nil {
+		return err
+	}
+	if len(mismatches) > 0 {
+		fmt.Print(mismatch.FormatHuman(mismatches))
+		if failOnMismatch {
+			// Signal non-zero exit by returning an error; cobra translates
+			// any non-nil error into exit code 1.
+			return fmt.Errorf("analyze: %d signature mismatch(es) detected", len(mismatches))
+		}
+	}
+	return nil
 }
 
 func syncIndex(store db.Store, repo *git.Repository, p parser.Parser, targetSHA string) error {
@@ -243,21 +308,32 @@ func syncIndex(store db.Store, repo *git.Repository, p parser.Parser, targetSHA 
 	return nil
 }
 
-// outputJSON writes the blast result as JSON to stdout.
-func outputJSON(result impact.BlastResult, changedSymbols []string) error {
+// outputJSON writes the blast result and any detected mismatches as JSON to
+// stdout. When failOnMismatch is set and mismatches exist, it returns an
+// error so cobra exits with a non-zero code; the JSON report is still emitted
+// first so callers (and CI) see the full picture before the failure.
+func outputJSON(result impact.BlastResult, changedSymbols []string, mismatches []mismatch.Mismatch, failOnMismatch bool) error {
 	report := struct {
-		ChangedSymbols  []string              `json:"changed_symbols"`
+		ChangedSymbols  []string                `json:"changed_symbols"`
 		AffectedSymbols []impact.AffectedSymbol `json:"affected_symbols"`
-		AffectedFiles   []string              `json:"affected_files"`
+		AffectedFiles   []string                `json:"affected_files"`
+		Mismatches      []mismatch.Mismatch     `json:"mismatches"`
 	}{
 		ChangedSymbols:  changedSymbols,
 		AffectedSymbols: append(result.DirectlyAffected, result.TransitivelyAffected...),
 		AffectedFiles:   result.AffectedFiles,
+		Mismatches:      mismatches,
 	}
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(report)
+	if err := enc.Encode(report); err != nil {
+		return err
+	}
+	if failOnMismatch && len(mismatches) > 0 {
+		return fmt.Errorf("analyze: %d signature mismatch(es) detected", len(mismatches))
+	}
+	return nil
 }
 
 // outputHuman writes a human-readable blast radius report to stdout.

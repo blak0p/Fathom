@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/Fathom/internal/refs"
@@ -75,7 +76,7 @@ func TestPutGetSymbolRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetSymbol(%q, %q): %v", want.File, want.Name, err)
 		}
-		if got != want {
+		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("GetSymbol mismatch for %q:\nwant: %+v\ngot:  %+v", want.Name, want, got)
 		}
 	}
@@ -249,7 +250,7 @@ func TestPutSymbolsAtomicity(t *testing.T) {
 		if gErr != nil {
 			t.Fatalf("A symbol %q should survive failed B write: %v", want.Name, gErr)
 		}
-		if got != want {
+		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("A symbol %q mismatch:\nwant: %+v\ngot:  %+v", want.Name, want, got)
 		}
 	}
@@ -319,7 +320,7 @@ func TestPutGetReferencesRoundTrip(t *testing.T) {
 		// Sort got by (file, line) to match the store's sortReferences.
 		// (GetReferences already sorts; we just compare element-wise.)
 		for i, g := range got {
-			if g != wantRefs[i] {
+			if !reflect.DeepEqual(g, wantRefs[i]) {
 				t.Errorf("GetReferences(%q)[%d] = %+v, want %+v", sym, i, g, wantRefs[i])
 			}
 		}
@@ -545,8 +546,8 @@ func TestCheckSchemaVersionV1(t *testing.T) {
 // schema version ("2") passes the check with nil error.
 func TestCheckSchemaVersionV2(t *testing.T) {
 	s, _ := newTestStore(t)
-	if err := s.PutMeta(schemaVersionKey, currentSchemaVersion); err != nil {
-		t.Fatalf("PutMeta(schema_version, %q): %v", currentSchemaVersion, err)
+	if err := s.PutMeta(schemaVersionKey, CurrentSchemaVersion); err != nil {
+		t.Fatalf("PutMeta(schema_version, %q): %v", CurrentSchemaVersion, err)
 	}
 	if err := s.CheckSchemaVersion(); err != nil {
 		t.Fatalf("CheckSchemaVersion on v2 db: err = %v, want nil", err)
