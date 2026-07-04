@@ -7,3 +7,8 @@
 # of git because it ships large FFI binaries; each developer sets it up
 # locally by copying the module cache and symlinking .lib directories.
 .extmods/
+# Local Pi runtime state
+.atl/
+
+# Compiled binary
+/fathom
