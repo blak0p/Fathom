@@ -66,6 +66,9 @@ type Store interface {
 	// symbol name, this requires a full scan filtering by the SourceFile
 	// field of each stored Reference.
 	ListReferencesByFile(filePath string) ([]refs.Reference, error)
+	// DeleteSymbolsForFile removes all symbols and references for a given file
+	// path from the store.
+	DeleteSymbolsForFile(filePath string) error
 	// CheckSchemaVersion reads the "schema_version" meta key and returns nil
 	// only when it equals currentSchemaVersion. Any other value (including
 	// missing) returns ErrSchemaVersion with a migration hint.
@@ -300,6 +303,51 @@ func (s *boltStore) GetMeta(key string) (string, error) {
 	})
 
 	return value, err
+}
+
+// DeleteSymbolsForFile removes all symbols and references for a given file
+// path from the store.
+func (s *boltStore) DeleteSymbolsForFile(filePath string) error {
+	if s.db == nil {
+		return ErrStoreClosed
+	}
+
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		// 1. Prefix scan & delete from BucketSymbols
+		symbolsBucket := tx.Bucket([]byte(BucketSymbols))
+		if symbolsBucket == nil {
+			return fmt.Errorf("db: bucket %q missing", BucketSymbols)
+		}
+		prefix := []byte(filePath + keySeparator)
+		c := symbolsBucket.Cursor()
+		for k, _ := c.Seek(prefix); k != nil && hasPrefix(k, prefix); k, _ = c.Next() {
+			if err := symbolsBucket.Delete(k); err != nil {
+				return fmt.Errorf("db: delete symbol key %q: %w", string(k), err)
+			}
+		}
+
+		// 2. Scan & delete from BucketReferences
+		refsBucket := tx.Bucket([]byte(BucketReferences))
+		if refsBucket == nil {
+			return fmt.Errorf("db: bucket %q missing", BucketReferences)
+		}
+		var toDelete [][]byte
+		rc := refsBucket.Cursor()
+		for k, v := rc.First(); k != nil; k, v = rc.Next() {
+			var r refs.Reference
+			cp := make([]byte, len(v))
+			copy(cp, v)
+			if json.Unmarshal(cp, &r) == nil && r.SourceFile == filePath {
+				toDelete = append(toDelete, append([]byte(nil), k...))
+			}
+		}
+		for _, k := range toDelete {
+			if err := refsBucket.Delete(k); err != nil {
+				return fmt.Errorf("db: delete reference key %q: %w", string(k), err)
+			}
+		}
+		return nil
+	})
 }
 
 // Compile-time assertion that boltStore satisfies Store.
