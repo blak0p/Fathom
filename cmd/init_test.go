@@ -133,10 +133,10 @@ type Point struct{ X, Y int }
 		t.Errorf("expected symbol HandleRequest in index, got %d symbols", len(all))
 	}
 
-	// Metadata: schema_version must be "1" and commit_hash must be set (git
+	// Metadata: schema_version must be "2" and commit_hash must be set (git
 	// committed). Verify via the meta bucket.
-	if v, err := store.GetMeta("schema_version"); err != nil || v != "1" {
-		t.Errorf("schema_version meta = %q, err=%v; want %q", v, err, "1")
+	if v, err := store.GetMeta("schema_version"); err != nil || v != "2" {
+		t.Errorf("schema_version meta = %q, err=%v; want %q", v, err, "2")
 	}
 	if v, err := store.GetMeta("commit_hash"); err != nil || v == "" {
 		t.Errorf("commit_hash meta = %q, err=%v; want non-empty (git repo)", v, err)
@@ -167,8 +167,8 @@ func TestInitOnEmptyDir(t *testing.T) {
 	}
 
 	// schema_version is written regardless of how many files were indexed.
-	if v, err := store.GetMeta("schema_version"); err != nil || v != "1" {
-		t.Errorf("schema_version meta = %q, err=%v; want %q", v, err, "1")
+	if v, err := store.GetMeta("schema_version"); err != nil || v != "2" {
+		t.Errorf("schema_version meta = %q, err=%v; want %q", v, err, "2")
 	}
 }
 
@@ -260,6 +260,81 @@ func hasSymbolNamed(syms []symbol.Symbol, name string) bool {
 		}
 	}
 	return false
+}
+
+// TestInitWithRefs runs init on a multi-file Go fixture and verifies that
+// references are stored in the database. Requires git, so it is skipped
+// under -short.
+func TestInitWithRefs(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping git-backed integration test in -short mode")
+	}
+
+	dir := t.TempDir()
+	// main.go calls NewServer() and s.HandleRequest()
+	writeFixture(t, dir, "main.go", `package fixture
+
+import "fmt"
+
+func main() {
+	s := NewServer()
+	s.HandleRequest()
+	fmt.Println("done")
+}
+`)
+	// server.go defines NewServer and HandleRequest
+	writeFixture(t, dir, "server.go", `package fixture
+
+type Server struct{}
+
+func NewServer() *Server {
+	return &Server{}
+}
+
+func (s *Server) HandleRequest() {
+	// handle it
+}
+`)
+	gitInit(t, dir)
+
+	if err := runInit(dir); err != nil {
+		t.Fatalf("runInit: %v", err)
+	}
+
+	indexPath := filepath.Join(dir, ".fathom", "index.bolt")
+	store := openStoreForRead(t, indexPath)
+
+	// Verify references exist for "NewServer" (called from main.go)
+	refsToNewServer, err := store.GetReferences("NewServer")
+	if err != nil {
+		t.Fatalf("GetReferences(NewServer): %v", err)
+	}
+	if len(refsToNewServer) == 0 {
+		t.Fatal("expected at least one reference to NewServer, got 0")
+	}
+
+	// Verify references exist for "HandleRequest" (called from main.go)
+	refsToHandle, err := store.GetReferences("HandleRequest")
+	if err != nil {
+		t.Fatalf("GetReferences(HandleRequest): %v", err)
+	}
+	if len(refsToHandle) == 0 {
+		t.Fatal("expected at least one reference to HandleRequest, got 0")
+	}
+
+	// Verify ListReferencesByFile works for main.go
+	mainRefs, err := store.ListReferencesByFile(filepath.Join(dir, "main.go"))
+	if err != nil {
+		t.Fatalf("ListReferencesByFile(main.go): %v", err)
+	}
+	if len(mainRefs) == 0 {
+		t.Fatal("expected references from main.go, got 0")
+	}
+
+	// Verify schema_version is "2"
+	if v, err := store.GetMeta("schema_version"); err != nil || v != "2" {
+		t.Errorf("schema_version meta = %q, err=%v; want %q", v, err, "2")
+	}
 }
 
 // sameSymbolSet reports whether a and b contain the same (name, kind, file

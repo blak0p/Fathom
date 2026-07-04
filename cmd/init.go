@@ -110,12 +110,12 @@ func runInit(workdir string) error {
 	}
 
 	// --- Pass 2: parse + index ---------------------------------------------
-	indexedFiles, symbolCount, err := indexTree(workdir, p, store)
+	indexedFiles, symbolCount, refCount, err := indexTree(workdir, p, store)
 	if err != nil {
 		return err
 	}
 	logger.Info("index pass complete",
-		zap.Int("files", len(indexedFiles)), zap.Int("symbols", symbolCount))
+		zap.Int("files", len(indexedFiles)), zap.Int("symbols", symbolCount), zap.Int("references", refCount))
 
 	// --- Metadata ----------------------------------------------------------
 	if err := writeMetadata(store, commitHash, indexedFiles); err != nil {
@@ -124,8 +124,8 @@ func runInit(workdir string) error {
 
 	// --- Summary -----------------------------------------------------------
 	duration := time.Since(start)
-	fmt.Printf("Detected %d languages. Downloaded %d parsers. Indexed %d files, %d symbols in %s\n",
-		len(languages), len(languages), len(indexedFiles), symbolCount, duration.Round(time.Millisecond))
+	fmt.Printf("Detected %d languages. Downloaded %d parsers. Indexed %d files, %d symbols, %d references in %s\n",
+		len(languages), len(languages), len(indexedFiles), symbolCount, refCount, duration.Round(time.Millisecond))
 	return nil
 }
 
@@ -157,47 +157,53 @@ func collectExtensions(workdir string) ([]string, error) {
 }
 
 // indexTree walks workdir a second time, parses every supported file, and
-// writes its symbols to store atomically. Parse or store failures for one
-// file are logged and skipped so a single bad file cannot abort the whole
-// index. Returns the list of indexed file paths and the total symbol count.
-func indexTree(workdir string, p parser.Parser, store db.Store) ([]string, int, error) {
+// writes its symbols and references to store atomically. Parse or store
+// failures for one file are logged and skipped so a single bad file cannot
+// abort the whole index. Returns the list of indexed file paths, the total
+// symbol count, and the total reference count.
+func indexTree(workdir string, p parser.Parser, store db.Store) ([]string, int, int, error) {
 	var indexedFiles []string
 	var symbolCount int
+	var refCount int
 	logger := zap.L()
 
 	err := filepath.WalkDir(workdir, func(path string, d fs.DirEntry, err error) error {
 		return walkSkip(path, d, err, func() {
-			// Only attempt files whose language we can detect; ParseFile
+			// Only attempt files whose language we can detect; ParseFileWithRefs
 			// would otherwise return an "unsupported extension" error for
 			// every non-source file, drowning the logs.
 			if _, ok := p.DetectLanguage(path); !ok {
 				return
 			}
-			symbols, perr := p.ParseFile(path)
+			symbols, refs, perr := p.ParseFileWithRefs(path)
 			if perr != nil {
 				logger.Warn("parse failed; skipping file",
 					zap.String("path", path), zap.Error(perr))
 				return
 			}
-			if len(symbols) == 0 {
-				// Still count the file as indexed (it was parseable, just
-				// empty of declarations) but skip the store write.
-				indexedFiles = append(indexedFiles, path)
-				return
+			if len(symbols) > 0 {
+				if serr := store.PutSymbols(symbols); serr != nil {
+					logger.Warn("store write symbols failed; skipping file",
+						zap.String("path", path), zap.Error(serr))
+					return
+				}
 			}
-			if serr := store.PutSymbols(symbols); serr != nil {
-				logger.Warn("store write failed; skipping file",
-					zap.String("path", path), zap.Error(serr))
-				return
+			if len(refs) > 0 {
+				if rerr := store.PutReferences(path, refs); rerr != nil {
+					logger.Warn("store write references failed; skipping file",
+						zap.String("path", path), zap.Error(rerr))
+					return
+				}
 			}
 			indexedFiles = append(indexedFiles, path)
 			symbolCount += len(symbols)
+			refCount += len(refs)
 		})
 	})
 	if err != nil {
-		return nil, 0, fmt.Errorf("init: index walk: %w", err)
+		return nil, 0, 0, fmt.Errorf("init: index walk: %w", err)
 	}
-	return indexedFiles, symbolCount, nil
+	return indexedFiles, symbolCount, refCount, nil
 }
 
 // walkSkip is the shared WalkDir callback for both passes. It centralizes the
@@ -268,7 +274,7 @@ func writeMetadata(store db.Store, commitHash string, indexedFiles []string) err
 	}
 
 	meta := []struct{ key, value string }{
-		{"schema_version", "1"},
+		{"schema_version", "2"},
 		{"commit_hash", commitHash},
 		{"indexed_at", time.Now().UTC().Format(time.RFC3339)},
 		{"indexed_files", string(filesJSON)},

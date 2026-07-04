@@ -155,9 +155,17 @@ func ExtractSymbols(source []byte, lang string) ([]symbol.Symbol, error) {
 		return nil, nil
 	}
 
+	return extractSymbolsFromRoot(root, source, lang, kindMap), nil
+}
+
+// extractSymbolsFromRoot walks an already-parsed CST root and returns the
+// symbols found. It is the shared implementation used by both ExtractSymbols
+// (which parses internally) and ParseFileWithRefs (which passes a pre-parsed
+// root to avoid a second parse).
+func extractSymbolsFromRoot(root *tspack.Node, source []byte, lang string, kindMap map[string]symbol.SymbolKind) []symbol.Symbol {
 	var symbols []symbol.Symbol
 	walkNode(root, source, lang, kindMap, &symbols)
-	return symbols, nil
+	return symbols
 }
 
 // walkNode recursively walks the named children of n, emitting a symbol for
