@@ -1,0 +1,2 @@
+# Fathom local state (bbolt databases, caches, indexes).
+.fathom/
