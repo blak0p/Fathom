@@ -83,8 +83,16 @@ func TestAnalyzeNonexistentBranch(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(origWd) })
 
+	// Write a dummy file so git commit doesn't fail
+	writeFixture(t, dir, "main.go", "package main\n\nfunc main() {}\n")
+
 	// Initialize git repo but with no branch named nonexistent
 	gitInit(t, dir)
+
+	// Run fathom init to build index database
+	if err := runInit(dir); err != nil {
+		t.Fatalf("runInit: %v", err)
+	}
 
 	cmd := &cobra.Command{}
 	err = runAnalyze(cmd, []string{})

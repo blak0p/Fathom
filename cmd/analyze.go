@@ -98,6 +98,10 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 	} else {
 		// Auto-magic differential analysis
 
+		if _, err := repo.ResolveCommit(baseBranch); err != nil {
+			return err
+		}
+
 		C, err := repo.MergeBase(baseBranch)
 		if err != nil {
 			return err
