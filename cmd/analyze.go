@@ -158,7 +158,7 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 			}
 			syms, err := p.ParseFile(diffItem.Path)
 			if err != nil {
-				if strings.Contains(err.Error(), "unsupported file extension") {
+				if strings.Contains(err.Error(), "unsupported") {
 					continue
 				}
 				return fmt.Errorf("analyze: parse workspace file for mismatch: %w", err)

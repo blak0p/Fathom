@@ -9,6 +9,16 @@ import (
 	"github.com/Fathom/internal/symbol"
 )
 
+// isSkipError reports whether err is a parser error that should be silently
+// skipped rather than aborting the analysis. Both "unsupported file extension"
+// (language not recognized) and "unsupported language" (recognized but no kind
+// map, e.g. JSON) are safe to skip — the file carries no Fathom symbols.
+func isSkipError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "unsupported file extension") ||
+		strings.Contains(msg, "unsupported language")
+}
+
 // Intersects checks if a symbol's line span intersects with a LineRange.
 func Intersects(sym symbol.Symbol, r git.LineRange) bool {
 	symStart := sym.Line
@@ -58,7 +68,7 @@ func AlignSymbols(
 	case git.StatusAdded:
 		symbols, err := p.ParseFile(fileDiff.Path)
 		if err != nil {
-			if strings.Contains(err.Error(), "unsupported file extension") {
+			if isSkipError(err) {
 				return nil, nil
 			}
 			return nil, err
@@ -75,7 +85,7 @@ func AlignSymbols(
 		}
 		symbols, _, err := p.ParseBytesWithRefs(relPath, baseBytes)
 		if err != nil {
-			if strings.Contains(err.Error(), "unsupported file extension") {
+			if isSkipError(err) {
 				return nil, nil
 			}
 			return nil, err
@@ -98,7 +108,7 @@ func AlignSymbols(
 						}
 					}
 				}
-			} else if !strings.Contains(err.Error(), "unsupported file extension") {
+			} else if !isSkipError(err) {
 				return nil, err
 			}
 		}
@@ -106,7 +116,7 @@ func AlignSymbols(
 		// 2. Process new symbols in post-image (working tree)
 		newSymbols, err := p.ParseFile(fileDiff.Path)
 		if err != nil {
-			if strings.Contains(err.Error(), "unsupported file extension") {
+			if isSkipError(err) {
 				return nil, nil
 			}
 			return nil, err
