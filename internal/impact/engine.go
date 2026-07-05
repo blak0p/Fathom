@@ -11,6 +11,7 @@ package impact
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/Fathom/internal/db"
 )
@@ -25,6 +26,8 @@ type AffectedSymbol struct {
 	Depth int `json:"depth"`
 	// Via is the symbol whose reference led to this one (empty for depth 0).
 	Via string `json:"via"`
+	// DependencyType classifies the type of connection: "direct_call", "interface_call", or "struct_embedding".
+	DependencyType string `json:"dependency_type"`
 }
 
 // BlastResult is the output of a blast radius calculation.
@@ -56,6 +59,44 @@ func New(store db.Store) *Engine {
 func (e *Engine) Calculate(changedSymbols []string) (BlastResult, error) {
 	if len(changedSymbols) == 0 {
 		return BlastResult{}, nil
+	}
+
+	// Pre-load all interface method names to classify interface_call.
+	interfaceMethods := make(map[string]bool)
+	allSymbols, err := e.store.ListSymbols("")
+	if err == nil {
+		for _, sym := range allSymbols {
+			if sym.Kind == "interface" {
+				words := strings.FieldsFunc(sym.Content, func(r rune) bool {
+					return !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_')
+				})
+				for _, w := range words {
+					if w != "" {
+						interfaceMethods[w] = true
+					}
+				}
+			}
+		}
+	}
+
+	// Cache containing/caller symbol kinds to classify struct_embedding.
+	callerKinds := make(map[string]string)
+	getCallerKind := func(file, name string) string {
+		if name == "" {
+			return ""
+		}
+		key := file + "#" + name
+		if k, ok := callerKinds[key]; ok {
+			return k
+		}
+		sym, err := e.store.GetSymbol(file, name)
+		if err != nil {
+			callerKinds[key] = ""
+			return ""
+		}
+		k := string(sym.Kind)
+		callerKinds[key] = k
+		return k
 	}
 
 	// visited tracks every symbol we have already enqueued or processed.
@@ -100,11 +141,27 @@ func (e *Engine) Calculate(changedSymbols []string) (BlastResult, error) {
 			}
 			visited[caller] = true
 
+			// Resolve dependency type.
+			depType := "direct_call"
+			if ref.Kind == "call" {
+				if interfaceMethods[current.name] {
+					depType = "interface_call"
+				} else {
+					depType = "direct_call"
+				}
+			} else {
+				ck := getCallerKind(ref.SourceFile, ref.ContainingSymbol)
+				if ck == "type" || ck == "class" || ref.Kind == "type_use" {
+					depType = "struct_embedding"
+				}
+			}
+
 			affected := AffectedSymbol{
-				Name:  caller,
-				File:  ref.SourceFile,
-				Depth: current.depth + 1,
-				Via:   current.name,
+				Name:           caller,
+				File:           ref.SourceFile,
+				Depth:          current.depth + 1,
+				Via:            current.name,
+				DependencyType: depType,
 			}
 
 			if current.depth == 0 {

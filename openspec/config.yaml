@@ -1,0 +1,61 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Go 1.26.4, Cobra CLI framework, bbolt key-value store, tree-sitter AST package
+  Architecture: Clean Go layout with CLI commands under cmd/ and domain logic under internal/ (db, diff, git, impact, mismatch, parser, refs, symbol)
+  Testing: Standard Go tests (short & full integration), but Go compiler and Make are currently missing from the terminal environment PATH.
+  Style: Standard Go code formatting conventions
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    - Follow existing code patterns
+    tdd: false
+    test_command: "go test -short ./..."
+  verify:
+    test_command: "go test ./..."
+    build_command: "go build -o fathom ."
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+
+testing:
+  strict_tdd: false
+  detected_date: "2026-07-05"
+  test_runner:
+    command: "go test"
+    framework: "go test"
+    status: "Unavailable in PATH"
+  layers:
+    unit:
+      available: true
+      tool: "go test -short ./..."
+    integration:
+      available: true
+      tool: "go test ./..."
+    e2e:
+      available: false
+      tool: "—"
+  coverage:
+    available: true
+    command: "go test -cover"
+  quality_tools:
+    linter:
+      available: true
+      command: "go vet ./..."
+    type_checker:
+      available: true
+      command: "go build"
+    formatter:
+      available: true
+      command: "go fmt ./..."

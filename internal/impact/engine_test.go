@@ -6,6 +6,7 @@ import (
 
 	"github.com/Fathom/internal/db"
 	"github.com/Fathom/internal/refs"
+	"github.com/Fathom/internal/symbol"
 )
 
 // testStore opens a fresh bolt store in t.TempDir() and returns it.
@@ -241,3 +242,64 @@ func TestTopLevelReference(t *testing.T) {
 		t.Errorf("directly affected depth = %d, want 1", result.DirectlyAffected[0].Depth)
 	}
 }
+
+func TestDependencyTypes(t *testing.T) {
+	store := testStore(t)
+
+	// 1. Direct function call
+	putRefs(t, store, "server.go", []refs.Reference{
+		{SymbolName: "HandleRequest", Kind: refs.RefCall, SourceFile: "server.go", SourceLine: 5, ContainingSymbol: "Serve"},
+	})
+
+	// 2. Interface call
+	// Reader interface contains Read method
+	if err := store.PutSymbols([]symbol.Symbol{
+		{Name: "Reader", Kind: "interface", Content: "type Reader interface { Read(p []byte) }", File: "reader.go"},
+	}); err != nil {
+		t.Fatalf("PutSymbols: %v", err)
+	}
+	putRefs(t, store, "config.go", []refs.Reference{
+		{SymbolName: "Read", Kind: refs.RefCall, SourceFile: "config.go", SourceLine: 10, ContainingSymbol: "LoadConfig"},
+	})
+
+	// 3. Struct embedding
+	// UserController is a type embedding BaseController
+	if err := store.PutSymbols([]symbol.Symbol{
+		{Name: "UserController", Kind: "type", Content: "type UserController struct { BaseController }", File: "user.go"},
+	}); err != nil {
+		t.Fatalf("PutSymbols: %v", err)
+	}
+	putRefs(t, store, "user.go", []refs.Reference{
+		{SymbolName: "BaseController", Kind: refs.RefTypeUse, SourceFile: "user.go", SourceLine: 2, ContainingSymbol: "UserController"},
+	})
+
+	engine := New(store)
+
+	// Test direct call
+	res1, err := engine.Calculate([]string{"HandleRequest"})
+	if err != nil {
+		t.Fatalf("Calculate direct: %v", err)
+	}
+	if len(res1.DirectlyAffected) != 1 || res1.DirectlyAffected[0].DependencyType != "direct_call" {
+		t.Errorf("expected direct_call, got %+v", res1.DirectlyAffected)
+	}
+
+	// Test interface call
+	res2, err := engine.Calculate([]string{"Read"})
+	if err != nil {
+		t.Fatalf("Calculate interface: %v", err)
+	}
+	if len(res2.DirectlyAffected) != 1 || res2.DirectlyAffected[0].DependencyType != "interface_call" {
+		t.Errorf("expected interface_call, got %+v", res2.DirectlyAffected)
+	}
+
+	// Test struct embedding
+	res3, err := engine.Calculate([]string{"BaseController"})
+	if err != nil {
+		t.Fatalf("Calculate embedding: %v", err)
+	}
+	if len(res3.DirectlyAffected) != 1 || res3.DirectlyAffected[0].DependencyType != "struct_embedding" {
+		t.Errorf("expected struct_embedding, got %+v", res3.DirectlyAffected)
+	}
+}
+

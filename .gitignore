@@ -12,3 +12,6 @@
 
 # Compiled binary
 /fathom
+
+# CodeGraph directory
+.codegraph/
