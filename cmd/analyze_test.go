@@ -178,3 +178,81 @@ func Added() {
 		t.Fatalf("runAnalyze failed: %v", err)
 	}
 }
+
+func TestAnalyzeHTMLReport(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping git-backed integration test in -short mode")
+	}
+
+	baseBranch = "main"
+	jsonOutput = false
+	reportDir := t.TempDir()
+	htmlPath = filepath.Join(reportDir, "report.html")
+	t.Cleanup(func() {
+		baseBranch = ""
+		jsonOutput = false
+		htmlPath = ""
+	})
+
+	dir := t.TempDir()
+
+	contentA := `package main
+func TargetFunc() {}
+`
+	contentCaller := `package main
+func CallTarget() {
+	TargetFunc()
+}
+`
+	writeFixture(t, dir, "main.go", contentA)
+	writeFixture(t, dir, "caller.go", contentCaller)
+
+	gitInit(t, dir)
+
+	if err := runInit(dir); err != nil {
+		t.Fatalf("runInit: %v", err)
+	}
+
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origWd) })
+
+	contentB := `package main
+func TargetFunc(x int) {}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(contentB), 0644); err != nil {
+		t.Fatalf("write modified main.go: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	err = runAnalyze(cmd, []string{})
+	if err != nil {
+		t.Fatalf("runAnalyze failed: %v", err)
+	}
+
+	if _, err := os.Stat(htmlPath); err != nil {
+		t.Fatalf("HTML report not generated at %s: %v", htmlPath, err)
+	}
+
+	htmlContent, err := os.ReadFile(htmlPath)
+	if err != nil {
+		t.Fatalf("read HTML report: %v", err)
+	}
+
+	htmlStr := string(htmlContent)
+	if !strings.Contains(htmlStr, "REVIEW") {
+		t.Errorf("expected Verdict 'REVIEW' in HTML report, got: %s", htmlStr)
+	}
+	if !strings.Contains(htmlStr, "TargetFunc") {
+		t.Errorf("expected target symbol 'TargetFunc' in HTML report")
+	}
+	if !strings.Contains(htmlStr, "direct_call") {
+		t.Errorf("expected dependency type 'direct_call' in HTML report")
+	}
+}
+

@@ -11,11 +11,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/Fathom/internal/db"
+	"github.com/Fathom/internal/deadcode"
 	"github.com/Fathom/internal/diff"
 	"github.com/Fathom/internal/git"
 	"github.com/Fathom/internal/impact"
 	"github.com/Fathom/internal/mismatch"
 	"github.com/Fathom/internal/parser"
+	"github.com/Fathom/internal/report"
 	"github.com/Fathom/internal/symbol"
 )
 
@@ -23,6 +25,7 @@ var (
 	jsonOutput     bool
 	baseBranch     string
 	failOnMismatch bool
+	htmlPath       string
 )
 
 // analyzeCmd implements "fathom analyze": compute the blast radius of changes
@@ -51,6 +54,7 @@ func init() {
 	analyzeCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output report as JSON")
 	analyzeCmd.Flags().StringVar(&baseBranch, "base", "", "Base branch to compare against")
 	analyzeCmd.Flags().BoolVar(&failOnMismatch, "fail-on-mismatch", false, "Exit with code 1 when signature mismatches are detected")
+	analyzeCmd.Flags().StringVar(&htmlPath, "html", "", "Output report as HTML to the specified file")
 	rootCmd.AddCommand(analyzeCmd)
 }
 
@@ -171,8 +175,19 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		}
 
 		if len(changedSymbols) == 0 {
+			payload, _ := report.Compile(store, impact.BlastResult{}, nil, nil, nil)
+			if htmlPath != "" {
+				f, err := os.Create(htmlPath)
+				if err != nil {
+					return fmt.Errorf("analyze: create HTML report: %w", err)
+				}
+				defer f.Close()
+				if err := report.Render(f, payload); err != nil {
+					return fmt.Errorf("analyze: render HTML report: %w", err)
+				}
+			}
 			if jsonOutput {
-				return outputJSON(impact.BlastResult{}, nil, nil, failOnMismatch)
+				return outputJSON(payload, impact.BlastResult{}, nil, nil, nil, failOnMismatch)
 			}
 			fmt.Println("No changed symbols found.")
 			return nil
@@ -201,9 +216,54 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("analyze: mismatch detection: %w", err)
 	}
 
+	// Run deadcode analysis.
+	var changedSymObjects []symbol.Symbol
+	if workspaceDefs != nil {
+		for _, syms := range workspaceDefs {
+			changedSymObjects = append(changedSymObjects, syms...)
+		}
+	} else {
+		dbSyms, err := store.ListSymbols("")
+		if err == nil {
+			changedNamesSet := make(map[string]bool)
+			for _, n := range changedSymbols {
+				changedNamesSet[n] = true
+			}
+			for _, s := range dbSyms {
+				if changedNamesSet[s.Name] {
+					changedSymObjects = append(changedSymObjects, s)
+				}
+			}
+		}
+	}
+
+	deadScanner := deadcode.New(store)
+	deadSymbols, err := deadScanner.Scan(changedSymObjects)
+	if err != nil {
+		return fmt.Errorf("analyze: deadcode scan: %w", err)
+	}
+
+	// Compile Report Payload.
+	payload, err := report.Compile(store, result, mismatches, deadSymbols, workspaceDefs)
+	if err != nil {
+		return fmt.Errorf("analyze: compile report: %w", err)
+	}
+
+	// Render HTML report if requested.
+	if htmlPath != "" {
+		f, err := os.Create(htmlPath)
+		if err != nil {
+			return fmt.Errorf("analyze: create HTML report: %w", err)
+		}
+		defer f.Close()
+		if err := report.Render(f, payload); err != nil {
+			return fmt.Errorf("analyze: render HTML report: %w", err)
+		}
+	}
+
 	// Output.
 	if jsonOutput {
-		return outputJSON(result, changedSymbols, mismatches, failOnMismatch)
+		return outputJSON(payload, result, changedSymbols, mismatches, deadSymbols, failOnMismatch)
 	}
 	if err := outputHuman(result, changedSymbols); err != nil {
 		return err
@@ -312,17 +372,23 @@ func syncIndex(store db.Store, repo *git.Repository, p parser.Parser, targetSHA 
 // stdout. When failOnMismatch is set and mismatches exist, it returns an
 // error so cobra exits with a non-zero code; the JSON report is still emitted
 // first so callers (and CI) see the full picture before the failure.
-func outputJSON(result impact.BlastResult, changedSymbols []string, mismatches []mismatch.Mismatch, failOnMismatch bool) error {
+func outputJSON(payload report.ReportPayload, result impact.BlastResult, changedSymbols []string, mismatches []mismatch.Mismatch, deadSymbols []deadcode.DeadSymbol, failOnMismatch bool) error {
 	report := struct {
+		Verdict         report.VerdictBlock     `json:"verdict"`
+		Findings        []report.Finding        `json:"findings"`
 		ChangedSymbols  []string                `json:"changed_symbols"`
 		AffectedSymbols []impact.AffectedSymbol `json:"affected_symbols"`
 		AffectedFiles   []string                `json:"affected_files"`
 		Mismatches      []mismatch.Mismatch     `json:"mismatches"`
+		DeadCode        []deadcode.DeadSymbol   `json:"dead_code"`
 	}{
+		Verdict:         payload.Verdict,
+		Findings:        payload.Findings.Findings,
 		ChangedSymbols:  changedSymbols,
 		AffectedSymbols: append(result.DirectlyAffected, result.TransitivelyAffected...),
 		AffectedFiles:   result.AffectedFiles,
 		Mismatches:      mismatches,
+		DeadCode:        deadSymbols,
 	}
 
 	enc := json.NewEncoder(os.Stdout)

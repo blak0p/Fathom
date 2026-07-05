@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fathom Impact & Compatibility Report</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+            margin: 0;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 1rem;
+        }
+        h1 {
+            margin: 0;
+            font-size: 2.25rem;
+            color: #111827;
+        }
+        .subtitle {
+            color: #4b5563;
+            margin-top: 0.5rem;
+        }
+        .block {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .block-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: #111827;
+            border-bottom: 1px solid #f3f4f6;
+            padding-bottom: 0.5rem;
+        }
+        .verdict-box {
+            padding: 1rem;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 1.25rem;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+        .verdict-clean {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .verdict-review {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        .verdict-summary {
+            font-size: 1.1rem;
+            color: #374151;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            text-align: left;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        th {
+            background-color: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+        }
+        tr:hover {
+            background-color: #f9fafb;
+        }
+        .finding-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        .finding-summary {
+            background-color: #f9fafb;
+            padding: 1rem;
+            cursor: pointer;
+            font-weight: 600;
+            user-select: none;
+        }
+        .finding-summary:hover {
+            background-color: #f3f4f6;
+        }
+        .finding-details {
+            padding: 1rem;
+            border-top: 1px solid #e5e7eb;
+            background-color: #ffffff;
+        }
+        .mismatch-list {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0 4px 4px 0;
+        }
+        .mismatch-item {
+            margin-bottom: 0.5rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #991b1b;
+        }
+        .mismatch-item:last-child {
+            margin-bottom: 0;
+        }
+        .code-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .code-column {
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            background-color: #f9fafb;
+            overflow: hidden;
+        }
+        .code-header {
+            background-color: #e5e7eb;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #4b5563;
+        }
+        .code-body {
+            margin: 0;
+            padding: 1rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .badge-high {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .badge-medium {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .badge-low {
+            background-color: #e0f2fe;
+            color: #0369a1;
+        }
+        .text-muted {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Fathom Impact & Compatibility Report</h1>
+            <div class="subtitle">Generated by Fathom Repository Impact Analysis</div>
+        </header>
+
+        <!-- Verdict Block -->
+        <div class="block">
+            <h2 class="block-title">Verdict</h2>
+            <div class="verdict-box {{ if eq .Verdict.Verdict "CLEAN" }}verdict-clean{{ else }}verdict-review{{ end }}">
+                {{ .Verdict.Verdict }}
+            </div>
+            <div class="verdict-summary">
+                {{ .Verdict.Summary }}
+            </div>
+        </div>
+
+        <!-- Build-Break Findings Block -->
+        <div class="block">
+            <h2 class="block-title">Build-Break Findings</h2>
+            {{ if .Findings.Findings }}
+                {{ range .Findings.Findings }}
+                <details class="finding-item">
+                    <summary class="finding-summary">
+                        {{ .SymbolName }} <span class="text-muted">in {{ .File }}</span>
+                    </summary>
+                    <div class="finding-details">
+                        <div class="text-muted" style="margin-bottom: 0.5rem;">
+                            <strong>Description:</strong> {{ .ChangeDescription }}
+                        </div>
+                        
+                        <div class="mismatch-list">
+                            {{ range .Mismatches }}
+                            <div class="mismatch-item">
+                                [{{ .Type }}] {{ .Detail }} ({{ .File }}:{{ .Line }})
+                            </div>
+                            {{ end }}
+                        </div>
+
+                        <div class="code-grid">
+                            <div class="code-column">
+                                <div class="code-header">Before (Antes)</div>
+                                <pre class="code-body"><code>{{ .DisplayOldContent }}</code></pre>
+                            </div>
+                            <div class="code-column">
+                                <div class="code-header">After (Después)</div>
+                                <pre class="code-body"><code>{{ .DisplayNewContent }}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+                {{ end }}
+            {{ else }}
+            <p class="text-muted">No signature mismatches detected.</p>
+            {{ end }}
+        </div>
+
+        <!-- Blast Radius Block -->
+        <div class="block">
+            <h2 class="block-title">Blast Radius</h2>
+            
+            <h3>Directly Affected ({{ len .BlastRadius.DirectlyAffected }})</h3>
+            {{ if .BlastRadius.DirectlyAffected }}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol Name</th>
+                        <th>Containing File</th>
+                        <th>Via (Trigger)</th>
+                        <th>Dependency Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{ range .BlastRadius.DirectlyAffected }}
+                    <tr>
+                        <td><strong>{{ .Name }}</strong></td>
+                        <td>{{ .File }}</td>
+                        <td><code>{{ .Via }}</code></td>
+                        <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+            {{ else }}
+            <p class="text-muted">No directly affected callers.</p>
+            {{ end }}
+
+            <h3 style="margin-top: 2rem;">Transitively Affected ({{ len .BlastRadius.TransitivelyAffected }})</h3>
+            {{ if .BlastRadius.TransitivelyAffected }}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol Name</th>
+                        <th>Containing File</th>
+                        <th>Via (Trigger)</th>
+                        <th>Depth</th>
+                        <th>Dependency Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{ range .BlastRadius.TransitivelyAffected }}
+                    <tr>
+                        <td><strong>{{ .Name }}</strong></td>
+                        <td>{{ .File }}</td>
+                        <td><code>{{ .Via }}</code></td>
+                        <td>{{ .Depth }}</td>
+                        <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+            {{ else }}
+            <p class="text-muted">No transitively affected callers.</p>
+            {{ end }}
+
+            <h3 style="margin-top: 2rem;">Affected Files ({{ len .BlastRadius.AffectedFiles }})</h3>
+            {{ if .BlastRadius.AffectedFiles }}
+            <ul>
+                {{ range .BlastRadius.AffectedFiles }}
+                <li>{{ . }}</li>
+                {{ end }}
+            </ul>
+            {{ else }}
+            <p class="text-muted">No files affected.</p>
+            {{ end }}
+        </div>
+
+        <!-- Dead Code Block -->
+        <div class="block">
+            <h2 class="block-title">Dead Code Analysis</h2>
+            {{ if .DeadCode.DeadSymbols }}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol Name</th>
+                        <th>File</th>
+                        <th>Confidence</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{ range .DeadCode.DeadSymbols }}
+                    <tr>
+                        <td><strong>{{ .Symbol.Name }}</strong> <span class="text-muted">({{ .Symbol.Kind }})</span></td>
+                        <td>{{ .Symbol.File }}</td>
+                        <td>
+                            <span class="badge {{ if eq .Confidence "High" }}badge-high{{ else if eq .Confidence "Medium" }}badge-medium{{ else }}badge-low{{ end }}">
+                                {{ .Confidence }}
+                            </span>
+                        </td>
+                        <td>{{ .Reason }}</td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+            {{ else }}
+            <p class="text-muted">No dead code detected.</p>
+            {{ end }}
+        </div>
+    </div>
+</body>
+</html>

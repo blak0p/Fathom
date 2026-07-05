@@ -41,6 +41,7 @@ github.com/tree-sitter/tree-sitter-ruby v0.21.1-0.20240818211811-7dbc1e2d0e2d h1
 github.com/tree-sitter/tree-sitter-ruby v0.21.1-0.20240818211811-7dbc1e2d0e2d/go.mod h1:T1nShQ4v5AJtozZ8YyAS4uzUtDAJj/iv4YfwXSbUHzg=
 github.com/tree-sitter/tree-sitter-rust v0.21.3-0.20240818005432-2b43eafe6447 h1:o9alBu1J/WjrcTKEthYtXmdkDc5OVXD+PqlvnEZ0Lzc=
 github.com/tree-sitter/tree-sitter-rust v0.21.3-0.20240818005432-2b43eafe6447/go.mod h1:1Oh95COkkTn6Ezp0vcMbvfhRP5gLeqqljR0BYnBzWvc=
+github.com/xberg-io/tree-sitter-language-pack/packages/go v1.12.2/go.mod h1:wcQ5IQW01XRoaRosbNAe9BwIUrAF3CE8b63DuTMKcdI=
 go.etcd.io/bbolt v1.5.0 h1:S7GAl7Fxv12yohbwFfIbQCGDWbQbtDGPET4P/bD4lxU=
 go.etcd.io/bbolt v1.5.0/go.mod h1:mkltfYE5aUHQxUct9N9V+Kp7aSjFqjgrhcXIS70Lrdk=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
