@@ -133,9 +133,9 @@ type Point struct{ X, Y int }
 		t.Errorf("expected symbol HandleRequest in index, got %d symbols", len(all))
 	}
 
-	// Metadata: schema_version must be "2" and commit_hash must be set (git
+	// Metadata: schema_version must be the current version and commit_hash must be set (git
 	// committed). Verify via the meta bucket.
-	if v, err := store.GetMeta("schema_version"); err != nil || v != "2" {
+	if v, err := store.GetMeta("schema_version"); err != nil || v != db.CurrentSchemaVersion {
 		t.Errorf("schema_version meta = %q, err=%v; want %q", v, err, "2")
 	}
 	if v, err := store.GetMeta("commit_hash"); err != nil || v == "" {
@@ -167,7 +167,7 @@ func TestInitOnEmptyDir(t *testing.T) {
 	}
 
 	// schema_version is written regardless of how many files were indexed.
-	if v, err := store.GetMeta("schema_version"); err != nil || v != "2" {
+	if v, err := store.GetMeta("schema_version"); err != nil || v != db.CurrentSchemaVersion {
 		t.Errorf("schema_version meta = %q, err=%v; want %q", v, err, "2")
 	}
 }
@@ -332,7 +332,7 @@ func (s *Server) HandleRequest() {
 	}
 
 	// Verify schema_version is "2"
-	if v, err := store.GetMeta("schema_version"); err != nil || v != "2" {
+	if v, err := store.GetMeta("schema_version"); err != nil || v != db.CurrentSchemaVersion {
 		t.Errorf("schema_version meta = %q, err=%v; want %q", v, err, "2")
 	}
 }

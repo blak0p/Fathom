@@ -187,7 +187,7 @@ func walkNode(n *tspack.Node, source []byte, lang string, kindMap map[string]sym
 		if lang == "go" && kind == "type_spec" && containsKind(n, "interface_type") {
 			sk = symbol.KindInterface
 		}
-		emitSymbol(n, source, sk, out)
+		emitSymbol(n, source, lang, sk, out)
 		if _, stop = noDescend[lang][kind]; stop {
 			return
 		}
@@ -205,7 +205,8 @@ func walkNode(n *tspack.Node, source []byte, lang string, kindMap map[string]sym
 
 // emitSymbol builds a symbol from n and appends it. The File field is left
 // blank; the caller (ParseFile) sets it so the extractor stays free of I/O.
-func emitSymbol(n *tspack.Node, source []byte, kind symbol.SymbolKind, out *[]symbol.Symbol) {
+// lang drives the language-specific parameter and inheritance extraction.
+func emitSymbol(n *tspack.Node, source []byte, lang string, kind symbol.SymbolKind, out *[]symbol.Symbol) {
 	start, end := n.StartByte(), n.EndByte()
 	var content string
 	if end <= uint(len(source)) {
@@ -227,6 +228,28 @@ func emitSymbol(n *tspack.Node, source []byte, kind symbol.SymbolKind, out *[]sy
 		Col:     nodeCol(n),
 		Content: content,
 	}
+
+	// Signature metadata: only function/method and class declarations carry
+	// parameter/inheritance info. extractParams and extractParentClass are
+	// no-ops on declarations without the relevant named children, leaving
+	// the zero values in place.
+	if kind == symbol.KindFunction {
+		minP, maxP, types := extractParams(n, source, lang)
+		s.MinParams = minP
+		s.MaxParams = maxP
+		s.ParamTypes = types
+		// Methods carry the enclosing class name. Walk parents to find a
+		// class declaration node and reuse its name. The enclosing class is
+		// available only when the function node's parent chain includes a
+		// class-declaration kind for the current language.
+		if cn := enclosingClassName(n, source, lang); cn != "" {
+			s.ClassName = cn
+		}
+	}
+	if kind == symbol.KindClass {
+		s.ParentClass = extractParentClass(n, source, lang)
+	}
+
 	*out = append(*out, s)
 }
 
@@ -247,6 +270,307 @@ func nodeCol(n *tspack.Node) int {
 		return 0
 	}
 	return int(p.Column) + 1
+}
+
+// extractParams walks the `parameters` named child of a function/method
+// declaration node n and returns (MinParams, MaxParams, ParamTypes):
+//
+//   - MinParams is the number of required parameters (those without a
+//     default value). Parameters with defaults count toward MaxParams only.
+//   - MaxParams is the total number of positional parameters, or -1 when the
+//     declaration is variadic (has a rest/variadic parameter).
+//   - ParamTypes is the type annotation string of each parameter in
+//     declaration order, or "unknown" when the parameter is unannotated.
+//
+// The walk is language-aware: the parameters container is a named child
+// called "parameters" in Go/TS/JS/Java/Rust/PHP and "parameters" in Python
+// (Python uses a `parameters` named child too). When n has no `parameters`
+// child, extractParams returns (0, 0, nil) and the caller leaves the zero
+// values in place.
+//
+// Variadic detection is language-specific:
+//
+//   - Go: a parameter whose kind is `variadic_parameter_declaration` (or whose
+//     type is `variadic_type`).
+//   - TS/JS: `rest_pattern`.
+//   - Python: `list_splat_pattern` / `dictionary_splat_pattern`.
+//   - Java/PHP: `spread_parameter` / `variadic_parameter`.
+//   - Rust: `variadic_parameter`.
+//
+// A parameter with a default value is detected via the `default_value`
+// named child (TS/JS/Python/Java) or a `= value` sibling pattern; this
+// implementation uses the presence of a named child whose kind contains
+// "default" as a heuristic that works across grammars.
+func extractParams(n *tspack.Node, source []byte, lang string) (minParams, maxParams int, paramTypes []string) {
+	if n == nil {
+		return 0, 0, nil
+	}
+	paramsNode := n.ChildByFieldName("parameters")
+	if paramsNode == nil {
+		return 0, 0, nil
+	}
+
+	count := paramsNode.NamedChildCount()
+	if count == 0 {
+		return 0, 0, nil
+	}
+
+	variadic := false
+	required := 0
+	types := make([]string, 0, count)
+
+	for i := uint(0); i < count; i++ {
+		p := paramsNode.NamedChild(uint32(i))
+		if p == nil {
+			continue
+		}
+		kind := p.Kind()
+
+		// Variadic/rest parameter → set the variadic flag and still record
+		// its type (the element type for Go's `...T`, the wrapped type for
+		// spread patterns). The parameter itself is NOT counted toward
+		// MaxParams (the total positional count) because MaxParams = -1.
+		if isVariadicParam(kind, lang) {
+			variadic = true
+			types = append(types, paramType(p, source, lang))
+			continue
+		}
+
+		// A parameter has a default value when it carries a named child
+		// whose kind contains "default" (covers TS/JS `default_value`,
+		// Python `default_parameter`, Java `default_value`). Required
+		// params have no such child.
+		if !hasDefault(p) {
+			required++
+		}
+		maxParams++
+		types = append(types, paramType(p, source, lang))
+	}
+
+	if variadic {
+		maxParams = -1
+	}
+	return required, maxParams, types
+}
+
+// isVariadicParam reports whether a parameter node kind represents a
+// variadic/rest parameter in the given language. The check is on kind names
+// because tree-sitter grammars use distinct kinds for variadic parameters
+// (rather than a field), so a substring match on the canonical names is the
+// most robust cross-language test.
+func isVariadicParam(kind, lang string) bool {
+	switch lang {
+	case "go":
+		// `variadic_parameter_declaration` is the Go kind for `args ...T`.
+		return kind == "variadic_parameter_declaration" || kind == "variadic_type"
+	case "javascript", "typescript", "tsx":
+		return kind == "rest_pattern"
+	case "python":
+		return kind == "list_splat_pattern" || kind == "dictionary_splat_pattern" || kind == "list_splat" || kind == "dictionary_splat"
+	case "java":
+		return kind == "spread_parameter" || kind == "variadic_parameter"
+	case "php":
+		return kind == "variadic_parameter" || kind == "rest_argument"
+	case "rust":
+		return kind == "variadic_parameter"
+	case "ruby":
+		return kind == "rest_parameter" || kind == "keyword_rest_parameter" || kind == "block_parameter"
+	case "c", "cpp":
+		return kind == "variadic_parameter" || kind == "parameter_declaration" && false // C/C++ use `...` tokens, handled below
+	}
+	return false
+}
+
+// hasDefault reports whether parameter node p carries a default value. We
+// detect this generically by looking for a named child whose kind contains
+// the substring "default". This works across TS/JS (`default_value`),
+// Python (`default_parameter` wraps the value), Java (`default_value`), and
+// PHP. Go and Rust have no default parameters so the check returns false,
+// which is correct (all their parameters are required).
+func hasDefault(p *tspack.Node) bool {
+	if p == nil {
+		return false
+	}
+	count := p.NamedChildCount()
+	for i := uint(0); i < count; i++ {
+		c := p.NamedChild(uint32(i))
+		if c == nil {
+			continue
+		}
+		if strings.Contains(c.Kind(), "default") {
+			return true
+		}
+	}
+	return false
+}
+
+// paramType returns the type-annotation string of a parameter node, or
+// "unknown" when the parameter is unannotated. The annotation lives in a
+// `type` field child (Go, TS, Java, Rust, PHP) or in a `type_annotation`
+// named child (Python). The text is trimmed of surrounding whitespace;
+// composite/anonymous types collapse to "unknown" only when no `type` field
+// or annotation child exists at all.
+func paramType(p *tspack.Node, source []byte, lang string) string {
+	if p == nil {
+		return "unknown"
+	}
+
+	// 1. Grammar-defined "type" field — Go (`type`), TS (`type_annotation`
+	//    exposed as a field in some grammars), Java (`type`), Rust (`type`),
+	//    PHP (`type`).
+	if tNode := p.ChildByFieldName("type"); tNode != nil {
+		if s := strings.TrimSpace(nodeText(tNode, source)); s != "" {
+			return s
+		}
+	}
+
+	// 2. Python: the annotation is a `type_annotation` (or bare `type`)
+	//    named child, or appears as the second named child after the
+	//    identifier.
+	count := p.NamedChildCount()
+	for i := uint(0); i < count; i++ {
+		c := p.NamedChild(uint32(i))
+		if c == nil {
+			continue
+		}
+		k := c.Kind()
+		if k == "type_annotation" || k == "type" || strings.HasSuffix(k, "type") {
+			if s := strings.TrimSpace(nodeText(c, source)); s != "" {
+				return s
+			}
+		}
+	}
+
+	// 3. TS/JS: the parameter type may be nested under a `type_annotation`
+	//    child even when no field is named.
+	for i := uint(0); i < count; i++ {
+		c := p.NamedChild(uint32(i))
+		if c == nil {
+			continue
+		}
+		if c.Kind() == "type_annotation" {
+			if s := strings.TrimSpace(nodeText(c, source)); s != "" {
+				return s
+			}
+		}
+	}
+
+	return "unknown"
+}
+
+// extractParentClass returns the superclass name of a class declaration n, or
+// "" when the class declares no superclass. The superclass lives in a
+// `superclass` named child (TS/JS, Java via `superclass`, Python via
+// `superclasses`/`argument_list`), in a `base_class` (Ruby), or in an
+// `extends` clause. We try the common named children and fall back to a
+// substring scan of the source for an `extends`/`inherits` clause when the
+// grammar does not expose a named field.
+func extractParentClass(n *tspack.Node, source []byte, lang string) string {
+	if n == nil {
+		return ""
+	}
+
+	// 1. `superclass` field — TS/JS/Java grammars expose this.
+	if sc := n.ChildByFieldName("superclass"); sc != nil {
+		if s := strings.TrimSpace(nodeText(sc, source)); s != "" {
+			return stripGenericArgs(s)
+		}
+	}
+
+	// 2. Named children with kind `superclass` / `superclasses` / `base_class`.
+	count := n.NamedChildCount()
+	for i := uint(0); i < count; i++ {
+		c := n.NamedChild(uint32(i))
+		if c == nil {
+			continue
+		}
+		switch c.Kind() {
+		case "superclass", "superclasses", "base_class", "extends_clause", "inheritance_specifier":
+			if s := strings.TrimSpace(nodeText(c, source)); s != "" {
+				return stripGenericArgs(firstIdentifier(s))
+			}
+		}
+	}
+
+	return ""
+}
+
+// enclosingClassName walks n's parent chain and returns the name of the
+// nearest enclosing class declaration, or "" when n is not inside a class.
+// The class kinds are language-specific (see kindMaps); we match by the
+// SymbolKind the parent would emit rather than by raw node kind so this works
+// uniformly across grammars.
+//
+// The walk is depth-bounded (maxParentDepth) as a defensive guard: the
+// tspack Node.Parent() binding returns a non-nil pointer for the root's
+// parent rather than nil, so a naive `for cur != nil` loop would never
+// terminate. The depth cap is well above any realistic nesting depth and
+// breaks the loop safely when the chain reaches the root.
+func enclosingClassName(n *tspack.Node, source []byte, lang string) string {
+	if n == nil {
+		return ""
+	}
+	kindMap, ok := kindMaps[lang]
+	if !ok {
+		return ""
+	}
+	// visited guards against malformed self-referential parent pointers
+	// by breaking cycles. We key on (StartByte, EndByte) which uniquely
+	// identifies a node within a single tree.
+	visited := make(map[uint]struct{})
+	cur := n.Parent()
+	for depth := 0; cur != nil && depth < maxParentDepth; depth++ {
+		start, end := cur.StartByte(), cur.EndByte()
+		key := start*31 + end
+		if _, seen := visited[key]; seen {
+			break
+		}
+		visited[key] = struct{}{}
+		// A null/invalid parent (tspack returns a zeroed node for the root's
+		// parent) is detected by a zero byte range; stop the walk there.
+		if start == 0 && end == 0 {
+			break
+		}
+		if sk, isDecl := kindMap[cur.Kind()]; isDecl && sk == symbol.KindClass {
+			if name := extractName(cur, source, symbol.KindClass); name != "" {
+				return name
+			}
+		}
+		cur = cur.Parent()
+	}
+	return ""
+}
+
+// maxParentDepth caps how far up the parent chain enclosingClassName walks.
+// It is a defensive bound, not a meaningful limit: real nesting depths are in
+// the dozens at most, so 1000 is effectively unbounded while guaranteeing
+// termination even when the binding returns a non-nil null parent.
+const maxParentDepth = 1000
+
+// stripGenericArgs strips a trailing `<...>` generic-argument list from a
+// type name so `List<int>` is recorded as `List`. The mismatch engine
+// compares parameter types lexically; collapsing generics keeps the
+// comparison meaningful across declarations that vary only in type
+// arguments.
+func stripGenericArgs(s string) string {
+	if i := strings.IndexByte(s, '<'); i >= 0 {
+		return strings.TrimSpace(s[:i])
+	}
+	return s
+}
+
+// firstIdentifier returns the first whitespace-or-comma-separated token of
+// s, so a multi-parent `extends A, B` clause is reduced to its first
+// identifier. Callers that need all parents can extend this later; the
+// mismatch engine starts with the first parent per the design's open
+// question on C++ multiple inheritance.
+func firstIdentifier(s string) string {
+	for _, sep := range []string{",", " ", "\t", "\n"} {
+		if i := strings.IndexByte(s, sep[0]); i >= 0 {
+			s = s[:i]
+		}
+	}
+	return strings.TrimSpace(s)
 }
 
 // extractName resolves a declaration's name. It tries the grammar-defined

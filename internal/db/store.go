@@ -31,10 +31,14 @@ var ErrNotFound = errors.New("db: not found")
 // migration hint so callers can surface actionable guidance to the user.
 var ErrSchemaVersion = errors.New("db: incompatible or missing schema version")
 
-// currentSchemaVersion is the schema version written by Fathom after a
-// successful index that includes reference extraction. Bumping this value
-// triggers the v1→v2 migration message for stale databases.
-const currentSchemaVersion = "2"
+// 	CurrentSchemaVersion is the schema version written by Fathom after a
+// successful index that includes signature-mismatch metadata (parameter
+// bounds, type annotations, argument counts). Bumping this value triggers
+// the v2→v3 migration message for stale databases; the new Symbol/Reference
+// fields are additive JSON, so no on-disk bucket migration is required —
+// only the version stamp changes so old indexes are rebuilt to populate the
+// new fields.
+const CurrentSchemaVersion = "3"
 
 // Store is the persistence interface used across Fathom. It is intentionally
 // narrow: callers can open/close the store, batch-write symbols per file,
@@ -66,8 +70,11 @@ type Store interface {
 	// symbol name, this requires a full scan filtering by the SourceFile
 	// field of each stored Reference.
 	ListReferencesByFile(filePath string) ([]refs.Reference, error)
+	// DeleteSymbolsForFile removes all symbols and references for a given file
+	// path from the store.
+	DeleteSymbolsForFile(filePath string) error
 	// CheckSchemaVersion reads the "schema_version" meta key and returns nil
-	// only when it equals currentSchemaVersion. Any other value (including
+	// only when it equals 	CurrentSchemaVersion. Any other value (including
 	// missing) returns ErrSchemaVersion with a migration hint.
 	CheckSchemaVersion() error
 }
@@ -302,6 +309,51 @@ func (s *boltStore) GetMeta(key string) (string, error) {
 	return value, err
 }
 
+// DeleteSymbolsForFile removes all symbols and references for a given file
+// path from the store.
+func (s *boltStore) DeleteSymbolsForFile(filePath string) error {
+	if s.db == nil {
+		return ErrStoreClosed
+	}
+
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		// 1. Prefix scan & delete from BucketSymbols
+		symbolsBucket := tx.Bucket([]byte(BucketSymbols))
+		if symbolsBucket == nil {
+			return fmt.Errorf("db: bucket %q missing", BucketSymbols)
+		}
+		prefix := []byte(filePath + keySeparator)
+		c := symbolsBucket.Cursor()
+		for k, _ := c.Seek(prefix); k != nil && hasPrefix(k, prefix); k, _ = c.Next() {
+			if err := symbolsBucket.Delete(k); err != nil {
+				return fmt.Errorf("db: delete symbol key %q: %w", string(k), err)
+			}
+		}
+
+		// 2. Scan & delete from BucketReferences
+		refsBucket := tx.Bucket([]byte(BucketReferences))
+		if refsBucket == nil {
+			return fmt.Errorf("db: bucket %q missing", BucketReferences)
+		}
+		var toDelete [][]byte
+		rc := refsBucket.Cursor()
+		for k, v := rc.First(); k != nil; k, v = rc.Next() {
+			var r refs.Reference
+			cp := make([]byte, len(v))
+			copy(cp, v)
+			if json.Unmarshal(cp, &r) == nil && r.SourceFile == filePath {
+				toDelete = append(toDelete, append([]byte(nil), k...))
+			}
+		}
+		for _, k := range toDelete {
+			if err := refsBucket.Delete(k); err != nil {
+				return fmt.Errorf("db: delete reference key %q: %w", string(k), err)
+			}
+		}
+		return nil
+	})
+}
+
 // Compile-time assertion that boltStore satisfies Store.
 var _ Store = (*boltStore)(nil)
 
@@ -492,7 +544,7 @@ func (s *boltStore) ListReferencesByFile(filePath string) ([]refs.Reference, err
 }
 
 // CheckSchemaVersion reads the "schema_version" meta key and returns nil
-// only when it equals currentSchemaVersion. Any other value (including a
+// only when it equals 	CurrentSchemaVersion. Any other value (including a
 // missing key) returns ErrSchemaVersion with a migration hint so callers
 // like `fathom analyze` can surface actionable guidance.
 func (s *boltStore) CheckSchemaVersion() error {
@@ -507,8 +559,8 @@ func (s *boltStore) CheckSchemaVersion() error {
 		}
 		return err
 	}
-	if version != currentSchemaVersion {
-		return fmt.Errorf("%w: index was built with schema v%s; re-run `fathom init` to migrate to v%s", ErrSchemaVersion, version, currentSchemaVersion)
+	if version != 	CurrentSchemaVersion {
+		return fmt.Errorf("%w: index was built with Fathom v%s; please re-run `fathom init` to rebuild index with schema v%s", ErrSchemaVersion, version, 	CurrentSchemaVersion)
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package symbol
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -103,9 +104,9 @@ func TestSymbolJSONRoundTrip(t *testing.T) {
 				t.Fatalf("unmarshal: unexpected error: %v", err)
 			}
 
-			if got != tc.sym {
-				t.Fatalf("round-trip mismatch:\nwant: %+v\ngot:  %+v", tc.sym, got)
-			}
+		if !reflect.DeepEqual(got, tc.sym) {
+			t.Fatalf("round-trip mismatch:\nwant: %+v\ngot:  %+v", tc.sym, got)
+		}
 		})
 	}
 }
@@ -125,7 +126,7 @@ func TestSymbolZeroValue(t *testing.T) {
 		t.Fatalf("unmarshal zero: unexpected error: %v", err)
 	}
 
-	if got != zero {
+	if !reflect.DeepEqual(got, zero) {
 		t.Fatalf("zero round-trip mismatch:\nwant: %+v\ngot:  %+v", zero, got)
 	}
 }

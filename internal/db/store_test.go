@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/Fathom/internal/refs"
@@ -75,7 +76,7 @@ func TestPutGetSymbolRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetSymbol(%q, %q): %v", want.File, want.Name, err)
 		}
-		if got != want {
+		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("GetSymbol mismatch for %q:\nwant: %+v\ngot:  %+v", want.Name, want, got)
 		}
 	}
@@ -249,7 +250,7 @@ func TestPutSymbolsAtomicity(t *testing.T) {
 		if gErr != nil {
 			t.Fatalf("A symbol %q should survive failed B write: %v", want.Name, gErr)
 		}
-		if got != want {
+		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("A symbol %q mismatch:\nwant: %+v\ngot:  %+v", want.Name, want, got)
 		}
 	}
@@ -319,7 +320,7 @@ func TestPutGetReferencesRoundTrip(t *testing.T) {
 		// Sort got by (file, line) to match the store's sortReferences.
 		// (GetReferences already sorts; we just compare element-wise.)
 		for i, g := range got {
-			if g != wantRefs[i] {
+			if !reflect.DeepEqual(g, wantRefs[i]) {
 				t.Errorf("GetReferences(%q)[%d] = %+v, want %+v", sym, i, g, wantRefs[i])
 			}
 		}
@@ -545,8 +546,8 @@ func TestCheckSchemaVersionV1(t *testing.T) {
 // schema version ("2") passes the check with nil error.
 func TestCheckSchemaVersionV2(t *testing.T) {
 	s, _ := newTestStore(t)
-	if err := s.PutMeta(schemaVersionKey, currentSchemaVersion); err != nil {
-		t.Fatalf("PutMeta(schema_version, %q): %v", currentSchemaVersion, err)
+	if err := s.PutMeta(schemaVersionKey, CurrentSchemaVersion); err != nil {
+		t.Fatalf("PutMeta(schema_version, %q): %v", CurrentSchemaVersion, err)
 	}
 	if err := s.CheckSchemaVersion(); err != nil {
 		t.Fatalf("CheckSchemaVersion on v2 db: err = %v, want nil", err)
@@ -603,5 +604,70 @@ func TestListReferencesByFileClosed(t *testing.T) {
 	_, err := s.ListReferencesByFile("a.go")
 	if !errors.Is(err, ErrStoreClosed) {
 		t.Fatalf("ListReferencesByFile on closed store: err = %v, want ErrStoreClosed", err)
+	}
+}
+
+// TestDeleteSymbolsForFile verifies that DeleteSymbolsForFile removes all
+// symbols and references for a specific file while leaving other files'
+// data untouched.
+func TestDeleteSymbolsForFile(t *testing.T) {
+	s, _ := newTestStore(t)
+
+	// Put symbols and references for two files
+	symsA := fileASymbols()
+	symsB := fileBSymbols()
+	if err := s.PutSymbols(append(append([]symbol.Symbol{}, symsA...), symsB...)); err != nil {
+		t.Fatalf("PutSymbols: %v", err)
+	}
+
+	refsA := fileAReferences()
+	refsB := fileBReferences()
+	if err := s.PutReferences("a.go", refsA); err != nil {
+		t.Fatalf("PutReferences A: %v", err)
+	}
+	if err := s.PutReferences("b.go", refsB); err != nil {
+		t.Fatalf("PutReferences B: %v", err)
+	}
+
+	// Delete symbols for "a.go"
+	if err := s.DeleteSymbolsForFile("a.go"); err != nil {
+		t.Fatalf("DeleteSymbolsForFile: %v", err)
+	}
+
+	// Verify "a.go" symbols are gone
+	for _, sym := range symsA {
+		_, err := s.GetSymbol(sym.File, sym.Name)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("GetSymbol(%q, %q) = %v, want ErrNotFound", sym.File, sym.Name, err)
+		}
+	}
+
+	// Verify "b.go" symbols are intact
+	for _, sym := range symsB {
+		got, err := s.GetSymbol(sym.File, sym.Name)
+		if err != nil {
+			t.Errorf("GetSymbol(%q, %q) failed: %v", sym.File, sym.Name, err)
+		}
+		if got.Name != sym.Name {
+			t.Errorf("GetSymbol got %q, want %q", got.Name, sym.Name)
+		}
+	}
+
+	// Verify "a.go" references are gone
+	gotRefsA, err := s.ListReferencesByFile("a.go")
+	if err != nil {
+		t.Fatalf("ListReferencesByFile(a.go): %v", err)
+	}
+	if len(gotRefsA) != 0 {
+		t.Errorf("ListReferencesByFile(a.go) got %d references, want 0", len(gotRefsA))
+	}
+
+	// Verify "b.go" references are intact
+	gotRefsB, err := s.ListReferencesByFile("b.go")
+	if err != nil {
+		t.Fatalf("ListReferencesByFile(b.go): %v", err)
+	}
+	if len(gotRefsB) != len(refsB) {
+		t.Errorf("ListReferencesByFile(b.go) got %d references, want %d", len(gotRefsB), len(refsB))
 	}
 }
