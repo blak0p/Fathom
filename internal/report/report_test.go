@@ -324,6 +324,64 @@ func TestCompileAffectedCallersNoMatch(t *testing.T) {
 
 // --- Helpers test -------------------------------------------------------------
 
+func TestSplitPath(t *testing.T) {
+	cases := []struct {
+		in   string
+		want []string
+	}{
+		{"", []string{""}},
+		{"a.go", []string{"a.go"}},
+		{"cmd/foo/main.go", []string{"cmd", "foo", "main.go"}},
+		{"/abs/path/file.go", []string{"", "abs", "path", "file.go"}},
+		{"a/b/c/d.go", []string{"a", "b", "c", "d.go"}},
+		// Windows backslash normalized to forward slash.
+		{"cmd\\foo\\main.go", []string{"cmd", "foo", "main.go"}},
+		// Trailing slash keeps the empty last segment — harmless for the tree.
+		{"dir/", []string{"dir", ""}},
+	}
+	for _, c := range cases {
+		got := splitPath(c.in)
+		if len(got) != len(c.want) {
+			t.Errorf("splitPath(%q) = %v (len %d), want %v (len %d)", c.in, got, len(got), c.want, len(c.want))
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("splitPath(%q)[%d] = %q, want %q", c.in, i, got[i], c.want[i])
+			}
+		}
+	}
+}
+
+func TestBuildFileTree(t *testing.T) {
+	groups := []FileGroup{
+		{File: "a.go", Severity: "WARNING"},
+		{File: "cmd/foo/main.go", Severity: "WARNING"},
+		{File: "cmd/bar/util.go", Severity: "WARNING"},
+		{File: "z.go", Severity: "WARNING"},
+	}
+	root := buildFileTree(groups)
+	if !root.IsDir {
+		t.Fatalf("root is not a directory")
+	}
+	// Top-level children: cmd (dir), then files a.go, z.go
+	if len(root.Children) != 1 || root.Children[0].Name != "cmd" {
+		t.Fatalf("expected single 'cmd' dir child, got %+v", root.Children)
+	}
+	if len(root.Files) != 2 || root.Files[0].Name != "a.go" || root.Files[1].Name != "z.go" {
+		t.Fatalf("expected files [a.go, z.go], got %+v", root.Files)
+	}
+	cmd := root.Children[0]
+	// cmd has subdirs bar, foo (sorted) and no files.
+	if len(cmd.Children) != 2 || cmd.Children[0].Name != "bar" || cmd.Children[1].Name != "foo" {
+		t.Fatalf("expected cmd subdirs [bar, foo], got %+v", cmd.Children)
+	}
+	foo := cmd.Children[1]
+	if len(foo.Files) != 1 || foo.Files[0].Name != "main.go" || foo.Files[0].Severity != "WARNING" {
+		t.Fatalf("expected foo/main.go leaf with WARNING, got %+v", foo.Files)
+	}
+}
+
 func TestDisplaySeverity(t *testing.T) {
 	f := Finding{}
 	if got := f.DisplaySeverity(); got != "WARNING" {
@@ -416,30 +474,48 @@ func TestCompileAndRender(t *testing.T) {
 	// 1. Verify all sections exist in the HTML report
 	expectedSubstrings := []string{
 		"Fathom Impact & Compatibility Report",
-		"Verdict",
 		"Build-Break Findings",
 		"Blast Radius",
-		"Directly Affected",
-		"Transitively Affected",
 		"Dead Code Analysis",
-		// New visual scanability elements:
+		// Executive summary cards:
 		"Executive Summary",
 		"Total Findings",
 		"Warnings",
 		"Affected Files",
 		"Dead Code",
+		// Implicit risk score (no REVIEW/CLEAN banner):
+		"risk-score",
+		// File tree with severity badges:
+		"file-tree",
 		"WARNING",
+		// Findings with phase-2 CSS hooks:
+		"finding--breaking",
+		"finding--override",
+		"finding--internal",
+		// Grouped by Concern placeholder:
+		"Grouped by Concern",
+		"coming in next update",
+		// Blast radius graph container (PR 2 fills it):
+		"blast-graph",
+		// Affected callers preserved:
 		"Affected Callers",
+		"Caller", // affected caller listed under OldFunc finding
+		// Diff interactions preserved:
 		"diff-summary",
 		"Show only changes",
+		// Layout classes:
 		"summary-grid",
 		"file-group",
-		"Caller", // affected caller listed under OldFunc finding
 	}
 	for _, sub := range expectedSubstrings {
 		if !strings.Contains(htmlOutput, sub) {
 			t.Errorf("rendered HTML missing expected section: %q", sub)
 		}
+	}
+
+	// 1b. Verify no explicit REVIEW/CLEAN verdict banner (risk is implicit).
+	if strings.Contains(htmlOutput, ">REVIEW<") || strings.Contains(htmlOutput, ">CLEAN<") {
+		t.Errorf("rendered HTML contains explicit REVIEW/CLEAN banner; risk should be implicit")
 	}
 
 	// 2. Verify self-contained check (no http/https references to external CSS/JS)

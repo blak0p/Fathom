@@ -5,14 +5,14 @@
     <title>Fathom Impact & Compatibility Report</title>
     <style>
         :root {
-            /* Light Theme Palette: warm, rich — burnt orange accent */
-            --bg-primary: #fdf6f0;          /* warm off-white */
+            /* Light Theme Palette */
+            --bg-primary: #fdf6f0;
             --bg-secondary: #ffffff;
             --bg-tertiary: #f4e9df;
             --border-color: #e7d8c8;
             --text-primary: #1f1611;
             --text-secondary: #7a5e4c;
-            --accent-color: #c2410c;        /* burnt orange */
+            --accent-color: #c2410c;
             --accent-hover: #9a3412;
 
             --badge-clean-bg: #ecfdf5;
@@ -31,23 +31,30 @@
             --badge-low-text: #0369a1;
             --badge-low-border: #0ea5e9;
 
-            /* Per-card backgrounds — distinct colors per card type */
-            --card-findings-bg: #fff7ed;    /* orange-50 */
-            --card-warnings-bg: #fffbeb;    /* amber-50 */
-            --card-files-bg: #eff6ff;       /* blue-50 */
-            --card-dead-bg: #f5f3ff;        /* violet-50 */
+            /* Per-card backgrounds */
+            --card-findings-bg: #fff7ed;
+            --card-warnings-bg: #fffbeb;
+            --card-files-bg: #eff6ff;
+            --card-dead-bg: #f5f3ff;
 
-            /* Per-card text/border accents */
             --card-findings-accent: #c2410c;
             --card-warnings-accent: #d97706;
             --card-files-accent: #2563eb;
             --card-dead-accent: #7c3aed;
 
+            /* Risk tone — implicit verdict from counts */
+            --risk-tone-high: #dc2626;
+            --risk-tone-high-bg: #fef2f2;
+            --risk-tone-med: #d97706;
+            --risk-tone-med-bg: #fffbeb;
+            --risk-tone-low: #059669;
+            --risk-tone-low-bg: #ecfdf5;
+            --risk-pulse-rgb: 220, 38, 38;
+
             --transition-speed: 0.2s;
         }
 
         html[data-theme="dark"] {
-            /* Dark Theme Palette: warm dark with burnt orange accent */
             --bg-primary: #1c1917;
             --bg-secondary: #292524;
             --bg-tertiary: #1c1917;
@@ -82,12 +89,20 @@
             --card-warnings-accent: #fbbf24;
             --card-files-accent: #60a5fa;
             --card-dead-accent: #a78bfa;
+
+            --risk-tone-high: #f87171;
+            --risk-tone-high-bg: #4c0519;
+            --risk-pulse-rgb: 248, 113, 113;
+            --risk-tone-med: #fbbf24;
+            --risk-tone-med-bg: #451a03;
+            --risk-tone-low: #34d399;
+            --risk-tone-low-bg: #064e3b;
         }
 
-        /* Base Transitions */
         body, .block, .finding-item, .finding-summary, .collapsible-section,
         .section-summary, .search-input, .btn, table, th, td, tr,
-        .diff-grid, .diff-header-col, .diff-row-cell, .summary-card {
+        .diff-grid, .diff-header-col, .diff-row-cell, .summary-card,
+        .risk-score, .file-tree-node {
             transition: background-color var(--transition-speed) ease,
                         color var(--transition-speed) ease,
                         border-color var(--transition-speed) ease,
@@ -103,12 +118,8 @@
             line-height: 1.5;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+        .container { max-width: 1200px; margin: 0 auto; }
 
-        /* Header Layout */
         header {
             margin-bottom: 2rem;
             border-bottom: 2px solid var(--accent-color);
@@ -129,7 +140,6 @@
             font-size: 1.1rem;
         }
 
-        /* Search & Theme Controls */
         .header-controls {
             display: flex;
             align-items: center;
@@ -150,7 +160,6 @@
             font-size: 1rem;
             outline: none;
         }
-
         .search-input:focus {
             border-color: var(--accent-color);
             box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.15);
@@ -168,17 +177,57 @@
             border: 1px solid transparent;
             user-select: none;
         }
-
         .btn-secondary {
             background-color: var(--bg-secondary);
             border-color: var(--border-color);
             color: var(--text-primary);
         }
-
         .btn-secondary:hover {
             background-color: var(--bg-tertiary);
             border-color: var(--text-secondary);
         }
+
+        /* Risk score — implicit verdict from counts. No CLEAN/REVIEW banner.
+           Tone is driven by data attributes set server-side from Summary counts. */
+        .risk-score {
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            padding: 1.25rem 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-secondary);
+            margin-bottom: 2.5rem;
+        }
+        .risk-score[data-tone="high"] {
+            background-color: var(--risk-tone-high-bg);
+            border-color: var(--risk-tone-high);
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08);
+            animation: risk-pulse 2s ease-in-out infinite;
+        }
+        .risk-score[data-tone="medium"] {
+            background-color: var(--risk-tone-med-bg);
+            border-color: var(--risk-tone-med);
+        }
+        .risk-score[data-tone="low"] {
+            background-color: var(--risk-tone-low-bg);
+            border-color: var(--risk-tone-low);
+        }
+        @keyframes risk-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(var(--risk-pulse-rgb), 0.18); }
+            50% { box-shadow: 0 0 0 6px rgba(var(--risk-pulse-rgb), 0); }
+        }
+        .risk-score .risk-dot {
+            width: 0.875rem; height: 0.875rem; border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .risk-score[data-tone="high"] .risk-dot { background-color: var(--risk-tone-high); }
+        .risk-score[data-tone="medium"] .risk-dot { background-color: var(--risk-tone-med); }
+        .risk-score[data-tone="low"] .risk-dot { background-color: var(--risk-tone-low); }
+        .risk-score .risk-label {
+            font-weight: 700; font-size: 1.05rem; color: var(--text-primary);
+        }
+        .risk-score .risk-detail { color: var(--text-secondary); font-size: 0.95rem; }
 
         /* Executive Summary Card Grid */
         .summary-grid {
@@ -187,7 +236,6 @@
             gap: 1.25rem;
             margin-bottom: 2.5rem;
         }
-
         .summary-card {
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
@@ -199,33 +247,22 @@
             gap: 0.5rem;
             min-width: 0;
         }
-
         .summary-card.findings  { background-color: var(--card-findings-bg); border-color: var(--card-findings-accent); }
         .summary-card.warnings  { background-color: var(--card-warnings-bg); border-color: var(--card-warnings-accent); }
         .summary-card.files     { background-color: var(--card-files-bg);    border-color: var(--card-files-accent); }
         .summary-card.deadcode  { background-color: var(--card-dead-bg);     border-color: var(--card-dead-accent); }
-
         .summary-card .card-label {
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: var(--text-secondary);
+            font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-secondary);
         }
-
-        .summary-card .card-count {
-            font-size: 2.25rem;
-            font-weight: 800;
-            line-height: 1;
-            color: var(--text-primary);
-        }
-
+        .summary-card .card-count { font-size: 2.25rem; font-weight: 800; line-height: 1; color: var(--text-primary); }
         .summary-card.findings .card-count { color: var(--card-findings-accent); }
         .summary-card.warnings .card-count { color: var(--card-warnings-accent); }
         .summary-card.files    .card-count { color: var(--card-files-accent); }
         .summary-card.deadcode .card-count { color: var(--card-dead-accent); }
+        /* Elevated tone on cards when risk is high — implicit, no banner. */
+        .risk-tone-high .summary-card { border-width: 2px; }
 
-        /* Blocks styling */
         .block {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
@@ -234,55 +271,40 @@
             padding: 2rem;
             margin-bottom: 2.5rem;
         }
-
         .block-title {
-            font-size: 1.75rem;
-            font-weight: 700;
-            margin-top: 0;
-            margin-bottom: 1.5rem;
-            color: var(--text-primary);
-            border-bottom: 2px solid var(--accent-color);
-            padding-bottom: 0.75rem;
+            font-size: 1.75rem; font-weight: 700; margin-top: 0; margin-bottom: 1.5rem;
+            color: var(--text-primary); border-bottom: 2px solid var(--accent-color); padding-bottom: 0.75rem;
         }
 
-        /* Verdict styling */
-        .verdict-container {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            flex-wrap: wrap;
+        /* File tree — recursive <details> with severity badges */
+        .file-tree {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.92rem;
+            margin-top: 0.5rem;
         }
-
-        .verdict-badge {
-            padding: 0.5rem 1.25rem;
-            border-radius: 6px;
-            font-weight: 700;
-            font-size: 1.25rem;
-            text-transform: uppercase;
-            border: 1px solid transparent;
-            letter-spacing: 0.05em;
-            display: inline-block;
+        .file-tree-node { display: block; }
+        .file-tree details { margin-left: 1.1rem; }
+        .file-tree > details { margin-left: 0; }
+        .file-tree summary {
+            cursor: pointer; user-select: none; list-style: none;
+            padding: 0.3rem 0.5rem; border-radius: 6px;
+            display: inline-flex; align-items: center; gap: 0.5rem;
         }
-
-        .verdict-clean {
-            background-color: var(--badge-clean-bg);
-            color: var(--badge-clean-text);
-            border-color: var(--badge-clean-border);
+        .file-tree summary::-webkit-details-marker { display: none; }
+        .file-tree summary::before { content: "▸"; color: var(--text-secondary); font-size: 0.7rem; transition: transform var(--transition-speed) ease; }
+        .file-tree details[open] > summary::before { content: "▾"; }
+        .file-tree summary:hover { background-color: var(--bg-tertiary); }
+        .file-tree-leaf {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.3rem 0.5rem; border-radius: 6px;
+            margin-left: 1.1rem;
         }
+        .file-tree > .file-tree-leaf { margin-left: 0; }
+        .file-tree-leaf:hover { background-color: var(--bg-tertiary); }
+        .file-tree .file-name { color: var(--text-primary); }
+        .file-tree .dir-name { font-weight: 700; color: var(--text-primary); }
 
-        .verdict-review {
-            background-color: var(--badge-review-bg);
-            color: var(--badge-review-text);
-            border-color: var(--badge-review-border);
-        }
-
-        .verdict-summary {
-            font-size: 1.15rem;
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-
-        /* File-group section */
+        /* File-group section (findings grouped by file) */
         .file-group {
             border: 1px solid var(--border-color);
             border-radius: 10px;
@@ -290,44 +312,23 @@
             overflow: hidden;
             background-color: var(--bg-secondary);
         }
-
         .file-group-summary {
             background-color: var(--card-findings-bg);
             padding: 1rem 1.5rem;
-            cursor: pointer;
-            user-select: none;
-            list-style: none;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            flex-wrap: wrap;
+            cursor: pointer; user-select: none; list-style: none;
+            display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
             border-left: 4px solid var(--card-findings-accent);
         }
-
         .file-group-summary::-webkit-details-marker { display: none; }
-
-        .file-group-summary:hover {
-            background-color: var(--bg-tertiary);
-        }
-
+        .file-group-summary:hover { background-color: var(--bg-tertiary); }
         .file-group-path {
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-weight: 700;
-            font-size: 1rem;
-            color: var(--text-primary);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            min-width: 0;
+            font-weight: 700; font-size: 1rem; color: var(--text-primary);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
         }
+        .file-group-count { color: var(--text-secondary); font-size: 0.9rem; font-weight: 600; }
 
-        .file-group-count {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        /* Findings block */
+        /* Findings — phase-2 CSS hooks on each finding item */
         .finding-item {
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -335,461 +336,214 @@
             overflow: hidden;
             background-color: var(--bg-secondary);
         }
-
+        /* Phase-2 hooks — empty for now. Phase 2 adds breaking/override/internal. */
+        .finding-item.finding--breaking { border-left: 4px solid var(--risk-tone-high); }
+        .finding-item.finding--override { border-left: 4px solid var(--risk-tone-med); }
+        .finding-item.finding--internal { border-left: 4px solid var(--text-secondary); }
         .finding-summary {
             background-color: var(--bg-tertiary);
             padding: 1.25rem 1.5rem;
-            cursor: pointer;
-            user-select: none;
-            list-style: none;
+            cursor: pointer; user-select: none; list-style: none;
         }
-
-        .finding-summary::-webkit-details-marker {
-            display: none;
-        }
-
-        .finding-summary:hover {
-            background-color: var(--border-color);
-        }
-
+        .finding-summary::-webkit-details-marker { display: none; }
+        .finding-summary:hover { background-color: var(--border-color); }
         .finding-header-grid {
             display: grid;
             grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) minmax(300px, 1.8fr) auto;
-            gap: 1.5rem;
-            align-items: center;
-            width: 100%;
+            gap: 1.5rem; align-items: center; width: 100%;
         }
-
-        .finding-header-item {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-            min-width: 0;
-        }
-
+        .finding-header-item { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
         .finding-header-item .label {
-            font-size: 0.7rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-secondary);
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.05em; color: var(--text-secondary);
         }
-
         .finding-header-item .val {
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            font-size: 0.95rem; font-weight: 600; color: var(--text-primary);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-
         .finding-header-item code {
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            background-color: var(--bg-primary);
-            padding: 0.125rem 0.375rem;
-            border-radius: 4px;
-            border: 1px solid var(--border-color);
-            font-size: 0.85rem;
+            background-color: var(--bg-primary); padding: 0.125rem 0.375rem;
+            border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.85rem;
         }
-
         .finding-details {
-            padding: 1.5rem;
-            border-top: 1px solid var(--border-color);
-            background-color: var(--bg-secondary);
+            padding: 1.5rem; border-top: 1px solid var(--border-color); background-color: var(--bg-secondary);
         }
 
-        /* Affected Callers subsection */
         .affected-callers {
-            margin-bottom: 1.5rem;
-            border: 1px solid var(--card-files-accent);
-            border-radius: 8px;
-            background-color: var(--card-files-bg);
-            overflow: hidden;
+            margin-bottom: 1.5rem; border: 1px solid var(--card-files-accent);
+            border-radius: 8px; background-color: var(--card-files-bg); overflow: hidden;
         }
-
         .affected-callers-title {
-            padding: 0.75rem 1.25rem;
-            font-weight: 700;
-            font-size: 0.95rem;
-            color: var(--text-primary);
-            background-color: var(--bg-tertiary);
+            padding: 0.75rem 1.25rem; font-weight: 700; font-size: 0.95rem;
+            color: var(--text-primary); background-color: var(--bg-tertiary);
             border-bottom: 1px solid var(--border-color);
         }
-
         .affected-callers table { margin-top: 0; border: none; border-radius: 0; }
         .affected-callers th { background-color: transparent; }
 
         .mismatch-list {
             background-color: var(--badge-review-bg);
             border-left: 4px solid var(--badge-review-border);
-            padding: 1rem 1.25rem;
-            margin-bottom: 1.5rem;
-            border-radius: 0 6px 6px 0;
+            padding: 1rem 1.25rem; margin-bottom: 1.5rem; border-radius: 0 6px 6px 0;
         }
-
         .mismatch-item {
             margin-bottom: 0.5rem;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 0.85rem;
-            color: var(--badge-review-text);
+            font-size: 0.85rem; color: var(--badge-review-text);
         }
+        .mismatch-item:last-child { margin-bottom: 0; }
+        .mismatch-type { font-weight: 700; text-transform: uppercase; }
+        .mismatch-loc { color: var(--text-secondary); font-size: 0.8rem; }
 
-        .mismatch-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .mismatch-type {
-            font-weight: 700;
-            text-transform: uppercase;
-        }
-
-        .mismatch-loc {
-            color: var(--text-secondary);
-            font-size: 0.8rem;
-        }
-
-        /* Diff summary + collapsible diff */
-        .diff-section {
-            margin-top: 1rem;
-        }
-
+        .diff-section { margin-top: 1rem; }
         .diff-summary {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.5rem 0.9rem;
-            background-color: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.75rem;
+            display: inline-flex; align-items: center; gap: 0.75rem;
+            padding: 0.5rem 0.9rem; background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color); border-radius: 6px;
+            font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem;
         }
-
-        .diff-summary .diff-count {
-            font-weight: 700;
-            color: var(--accent-color);
-        }
-
-        .diff-toggle-row {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            flex-wrap: wrap;
-            margin-bottom: 0.75rem;
-        }
-
+        .diff-summary .diff-count { font-weight: 700; color: var(--accent-color); }
+        .diff-toggle-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
         .diff-toggle-btn {
-            padding: 0.4rem 0.9rem;
-            font-size: 0.85rem;
-            font-weight: 600;
-            border-radius: 6px;
-            border: 1px solid var(--accent-color);
-            background-color: var(--bg-secondary);
-            color: var(--accent-color);
-            cursor: pointer;
-            user-select: none;
+            padding: 0.4rem 0.9rem; font-size: 0.85rem; font-weight: 600;
+            border-radius: 6px; border: 1px solid var(--accent-color);
+            background-color: var(--bg-secondary); color: var(--accent-color);
+            cursor: pointer; user-select: none;
         }
-
-        .diff-toggle-btn:hover {
-            background-color: var(--accent-color);
-            color: var(--bg-secondary);
-        }
-
+        .diff-toggle-btn:hover { background-color: var(--accent-color); color: var(--bg-secondary); }
         .diff-only-changes {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            cursor: pointer;
-            user-select: none;
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            font-size: 0.85rem; color: var(--text-secondary); cursor: pointer; user-select: none;
         }
-
         .diff-only-changes input { cursor: pointer; }
+        .diff-collapsible { display: none; }
+        .diff-collapsible.open { display: block; }
 
-        .diff-collapsible {
-            display: none; /* hidden until expanded */
-        }
-
-        .diff-collapsible.open {
-            display: block;
-        }
-
-        /* Code grid before LCS substitution */
-        .code-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-top: 1rem;
-        }
-
+        .code-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem; }
         .code-column {
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background-color: var(--bg-primary);
-            overflow: hidden;
+            border: 1px solid var(--border-color); border-radius: 6px;
+            background-color: var(--bg-primary); overflow: hidden;
         }
-
         .code-header {
-            background-color: var(--bg-tertiary);
-            padding: 0.5rem 1rem;
-            font-weight: 700;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
+            background-color: var(--bg-tertiary); padding: 0.5rem 1rem;
+            font-weight: 700; font-size: 0.85rem; color: var(--text-secondary);
             border-bottom: 1px solid var(--border-color);
         }
-
         .code-body {
-            margin: 0;
-            padding: 1rem;
+            margin: 0; padding: 1rem;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 0.85rem;
-            overflow-x: auto;
-            white-space: pre;
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
+            font-size: 0.85rem; overflow-x: auto; white-space: pre;
+            background-color: var(--bg-primary); color: var(--text-primary);
         }
 
-        /* CSS Grid side-by-side layout generated dynamically */
         .diff-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            overflow: hidden;
-            background-color: var(--bg-secondary);
+            display: grid; grid-template-columns: 1fr 1fr;
+            border: 1px solid var(--border-color); border-radius: 8px;
+            overflow: hidden; background-color: var(--bg-secondary);
         }
-
-        .diff-header {
-            display: contents;
-        }
-
+        .diff-header { display: contents; }
         .diff-header-col {
-            background-color: var(--bg-tertiary);
-            padding: 0.75rem 1.25rem;
-            font-weight: 700;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
+            background-color: var(--bg-tertiary); padding: 0.75rem 1.25rem;
+            font-weight: 700; font-size: 0.85rem; color: var(--text-secondary);
             border-bottom: 1px solid var(--border-color);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            text-transform: uppercase; letter-spacing: 0.05em;
         }
-
-        .diff-header-col:first-child {
-            border-right: 1px solid var(--border-color);
-        }
-
+        .diff-header-col:first-child { border-right: 1px solid var(--border-color); }
         .diff-row-cell {
-            display: flex;
-            padding: 0.25rem 0.75rem;
+            display: flex; padding: 0.25rem 0.75rem;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 0.85rem;
-            line-height: 1.4;
-            white-space: pre-wrap;
-            word-break: break-all;
+            font-size: 0.85rem; line-height: 1.4; white-space: pre-wrap; word-break: break-all;
         }
-
-        .diff-row-cell.left {
-            border-right: 1px solid var(--border-color);
-        }
-
+        .diff-row-cell.left { border-right: 1px solid var(--border-color); }
         .diff-row-cell .line-num {
-            width: 3rem;
-            margin-right: 0.75rem;
-            color: var(--text-secondary);
-            text-align: right;
-            user-select: none;
-            border-right: 1px solid var(--border-color);
-            padding-right: 0.5rem;
-            opacity: 0.6;
+            width: 3rem; margin-right: 0.75rem; color: var(--text-secondary);
+            text-align: right; user-select: none; border-right: 1px solid var(--border-color);
+            padding-right: 0.5rem; opacity: 0.6;
         }
-
-        .diff-row-cell .code-line-text {
-            flex: 1;
-        }
-
-        .diff-row-cell.equal {
-            color: var(--text-primary);
-        }
-
-        .diff-row-cell.removed {
-            background-color: var(--badge-review-bg);
-            color: var(--badge-review-text);
-        }
-
-        .diff-row-cell.added {
-            background-color: var(--badge-clean-bg);
-            color: var(--badge-clean-text);
-        }
-
-        .diff-row-cell.empty {
-            background-color: var(--bg-primary);
-            opacity: 0.4;
-        }
-
+        .diff-row-cell .code-line-text { flex: 1; }
+        .diff-row-cell.equal { color: var(--text-primary); }
+        .diff-row-cell.removed { background-color: var(--badge-review-bg); color: var(--badge-review-text); }
+        .diff-row-cell.added { background-color: var(--badge-clean-bg); color: var(--badge-clean-text); }
+        .diff-row-cell.empty { background-color: var(--bg-primary); opacity: 0.4; }
         .diff-row-cell.placeholder-cell {
-            color: var(--text-secondary);
-            font-style: italic;
-            font-size: 0.85rem;
-            padding: 0.75rem 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            color: var(--text-secondary); font-style: italic; font-size: 0.85rem;
+            padding: 0.75rem 1rem; display: flex; align-items: center; justify-content: center;
             background-color: var(--bg-primary);
         }
 
-        /* Tables & Lists styling */
         table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin-top: 1rem;
-            text-align: left;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            overflow: hidden;
+            width: 100%; border-collapse: separate; border-spacing: 0;
+            margin-top: 1rem; text-align: left;
+            border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;
         }
-
-        th, td {
-            padding: 0.875rem 1.25rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-
+        th, td { padding: 0.875rem 1.25rem; border-bottom: 1px solid var(--border-color); }
         th {
-            background-color: var(--bg-tertiary);
-            font-weight: 700;
-            color: var(--text-secondary);
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            background-color: var(--bg-tertiary); font-weight: 700; color: var(--text-secondary);
+            font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;
         }
+        tr:last-child td { border-bottom: none; }
+        tr { background-color: var(--bg-secondary); }
+        tr:hover { background-color: var(--bg-tertiary); }
 
-        tr:last-child td {
-            border-bottom: none;
-        }
-
-        tr {
-            background-color: var(--bg-secondary);
-        }
-
-        tr:hover {
-            background-color: var(--bg-tertiary);
-        }
-
-        ul.affected-files-list {
-            margin: 0;
-            padding-left: 1.5rem;
-            color: var(--text-primary);
-        }
-
+        ul.affected-files-list { margin: 0; padding-left: 1.5rem; color: var(--text-primary); }
         ul.affected-files-list li {
             margin-bottom: 0.5rem;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 0.9rem;
         }
 
-        /* Collapsible Section Layouts */
         .collapsible-section {
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background-color: var(--bg-secondary);
-            overflow: hidden;
+            border: 1px solid var(--border-color); border-radius: 8px;
+            background-color: var(--bg-secondary); overflow: hidden;
         }
-
         .section-summary {
-            background-color: var(--bg-tertiary);
-            padding: 1rem 1.5rem;
-            font-weight: 700;
-            cursor: pointer;
-            user-select: none;
-            font-size: 1.15rem;
-            color: var(--text-primary);
+            background-color: var(--bg-tertiary); padding: 1rem 1.5rem;
+            font-weight: 700; cursor: pointer; user-select: none;
+            font-size: 1.15rem; color: var(--text-primary);
             border-bottom: 1px solid transparent;
         }
+        .section-summary::-webkit-details-marker { display: none; }
+        .section-summary:hover { background-color: var(--border-color); }
+        .collapsible-section[open] .section-summary { border-bottom: 1px solid var(--border-color); }
+        .section-content { padding: 1.5rem; background-color: var(--bg-secondary); }
 
-        .section-summary::-webkit-details-marker {
-            display: none;
+        .placeholder-coming-soon {
+            color: var(--text-secondary); font-style: italic;
+            padding: 1.5rem; text-align: center;
+            background-color: var(--bg-tertiary); border-radius: 8px;
         }
 
-        .section-summary:hover {
-            background-color: var(--border-color);
-        }
-
-        .collapsible-section[open] .section-summary {
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .section-content {
-            padding: 1.5rem;
-            background-color: var(--bg-secondary);
-        }
-
-        /* Badges */
         .badge {
-            display: inline-block;
-            padding: 0.25rem 0.625rem;
-            font-size: 0.75rem;
-            font-weight: 700;
-            border-radius: 999px; /* pill */
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border: 1px solid transparent;
+            display: inline-block; padding: 0.25rem 0.625rem;
+            font-size: 0.75rem; font-weight: 700; border-radius: 999px;
+            text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid transparent;
         }
+        .badge-high { background-color: var(--badge-review-bg); color: var(--badge-review-text); border-color: var(--badge-review-border); }
+        .badge-medium, .badge-warning { background-color: var(--badge-warning-bg); color: var(--badge-warning-text); border-color: var(--badge-warning-border); }
+        .badge-low { background-color: var(--badge-low-bg); color: var(--badge-low-text); border-color: var(--badge-low-border); }
 
-        .badge-high {
-            background-color: var(--badge-review-bg);
-            color: var(--badge-review-text);
-            border-color: var(--badge-review-border);
-        }
+        .text-muted { color: var(--text-secondary); font-size: 0.875rem; }
 
-        .badge-medium,
-        .badge-warning {
-            background-color: var(--badge-warning-bg);
-            color: var(--badge-warning-text);
-            border-color: var(--badge-warning-border);
-        }
-
-        .badge-low {
-            background-color: var(--badge-low-bg);
-            color: var(--badge-low-text);
-            border-color: var(--badge-low-border);
-        }
-
-        .text-muted {
-            color: var(--text-secondary);
-            font-size: 0.875rem;
+        /* Blast radius graph container — PR 2 fills #blast-graph with d3. */
+        #blast-graph {
+            width: 100%; min-height: 320px;
+            border: 1px dashed var(--border-color); border-radius: 8px;
+            background-color: var(--bg-tertiary);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-secondary); font-size: 0.9rem;
         }
 
         @media (max-width: 900px) {
-            .summary-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
+            .summary-grid { grid-template-columns: repeat(2, 1fr); }
         }
-
         @media (max-width: 768px) {
-            .summary-grid {
-                grid-template-columns: 1fr;
-            }
-            .finding-header-grid {
-                grid-template-columns: 1fr;
-                gap: 0.5rem;
-            }
-            .finding-header-item .val {
-                white-space: normal;
-            }
-            .code-grid, .diff-grid {
-                grid-template-columns: 1fr;
-            }
-            .diff-header-col:first-child {
-                border-right: none;
-                border-bottom: 1px solid var(--border-color);
-            }
-            .diff-row-cell.left {
-                border-right: none;
-                border-bottom: 1px solid var(--border-color);
-            }
+            .summary-grid { grid-template-columns: 1fr; }
+            .finding-header-grid { grid-template-columns: 1fr; gap: 0.5rem; }
+            .finding-header-item .val { white-space: normal; }
+            .code-grid, .diff-grid { grid-template-columns: 1fr; }
+            .diff-header-col:first-child { border-right: none; border-bottom: 1px solid var(--border-color); }
+            .diff-row-cell.left { border-right: none; border-bottom: 1px solid var(--border-color); }
         }
     </style>
     <script>
@@ -808,7 +562,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>Fathom Impact & Compatibility Report</h1>
+            <h1>Fathom Impact &amp; Compatibility Report</h1>
             <div class="subtitle">Generated by Fathom Repository Impact Analysis</div>
         </header>
 
@@ -838,23 +592,36 @@
             </div>
         </div>
 
-        <!-- Verdict Block -->
-        <div class="block">
-            <h2 class="block-title">Verdict</h2>
-            <div class="verdict-container">
-                <div class="verdict-badge {{ if eq .Verdict.Verdict "CLEAN" }}verdict-clean{{ else }}verdict-review{{ end }}">
-                    {{ .Verdict.Verdict }}
-                </div>
-                <div class="verdict-summary">
-                    {{ .Verdict.Summary }}
-                </div>
-            </div>
+        <!-- Implicit risk score — no CLEAN/REVIEW banner. Tone from counts. -->
+        {{ $hasFindings := gt .Summary.TotalFindings 0 }}
+        {{ $hasBlast := gt (len .BlastRadius.DirectlyAffected) 0 }}
+        {{ $riskHigh := or $hasFindings $hasBlast }}
+        {{ $riskTone := "low" }}
+        {{ if $riskHigh }}{{ $riskTone = "high" }}{{ else if gt .Summary.DeadCodeCount 0 }}{{ $riskTone = "medium" }}{{ end }}
+        <div class="risk-score" data-tone="{{ $riskTone }}" data-symbol-name="risk-score">
+            <span class="risk-dot"></span>
+            <span class="risk-label">Risk: {{ if $riskHigh }}elevated{{ else if gt .Summary.DeadCodeCount 0 }}moderate{{ else }}low{{ end }}</span>
+            <span class="risk-detail">
+                {{ .Summary.TotalFindings }} finding(s) · {{ .Summary.AffectedFiles }} affected file(s) · {{ .Summary.DeadCodeCount }} dead symbol(s)
+            </span>
         </div>
 
         <!-- Build-Break Findings Block -->
         <div class="block">
             <h2 class="block-title">Build-Break Findings</h2>
             {{ if .Findings.FileGroups }}
+                <!-- File tree with severity badges — recursive <details> -->
+                <details class="collapsible-section" open style="margin-bottom: 1.5rem;">
+                    <summary class="section-summary">Affected File Tree ({{ len .Findings.FileGroups }})</summary>
+                    <div class="section-content">
+                        <div class="file-tree">
+                        {{ $tree := buildFileTree .Findings.FileGroups }}
+                        {{ template "fileTreeDir" $tree }}
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Findings grouped by file -->
                 {{ range .Findings.FileGroups }}
                 <details class="file-group" open>
                     <summary class="file-group-summary">
@@ -863,7 +630,7 @@
                         <span class="file-group-count">{{ len .Findings }} finding(s)</span>
                     </summary>
                     {{ range .Findings }}
-                    <details class="finding-item">
+                    <details class="finding-item finding--breaking finding--override finding--internal">
                         <summary class="finding-summary">
                             <div class="finding-header-grid">
                                 <div class="finding-header-item">
@@ -936,7 +703,6 @@
                                     </label>
                                 </div>
                                 <div class="diff-collapsible">
-                                    <!-- DOM structure for code block inputs -->
                                     <div class="code-grid">
                                         <div class="code-column">
                                             <div class="code-header">Before</div>
@@ -954,77 +720,33 @@
                     {{ end }}
                 </details>
                 {{ end }}
+
+                <!-- Grouped by Concern — placeholder for phase 2 -->
+                <details class="collapsible-section">
+                    <summary class="section-summary">Grouped by Concern — coming in next update</summary>
+                    <div class="section-content">
+                        <div class="placeholder-coming-soon">
+                            Findings grouped by concern category (breaking, override, internal) will appear here in a future update.
+                        </div>
+                    </div>
+                </details>
             {{ else }}
             <p class="text-muted">No signature mismatches detected.</p>
             {{ end }}
         </div>
 
-        <!-- Blast Radius Block -->
+        <!-- Blast Radius Block — graph container ready for PR 2 (d3.js) -->
         <div class="block">
             <h2 class="block-title">Blast Radius</h2>
-            
-            <details class="collapsible-section" open>
-                <summary class="section-summary">Directly Affected Callers ({{ len .BlastRadius.DirectlyAffected }})</summary>
-                <div class="section-content">
-                    {{ if .BlastRadius.DirectlyAffected }}
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Symbol Name</th>
-                                <th>Containing File</th>
-                                <th>Via (Trigger)</th>
-                                <th>Dependency Type</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {{ range .BlastRadius.DirectlyAffected }}
-                            <tr>
-                                <td><strong data-symbol-name="{{ .Name }}">{{ .Name }}</strong></td>
-                                <td>{{ .File }}</td>
-                                <td><code>{{ .Via }}</code></td>
-                                <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
-                            </tr>
-                            {{ end }}
-                        </tbody>
-                    </table>
-                    {{ else }}
-                    <p class="text-muted">No directly affected callers.</p>
-                    {{ end }}
-                </div>
-            </details>
+            <div id="blast-graph" data-symbol-name="blast-radius">
+                {{ if and (eq (len .BlastRadius.DirectlyAffected) 0) (eq (len .BlastRadius.TransitivelyAffected) 0) }}
+                    No affected callers.
+                {{ else }}
+                    Interactive blast radius graph will render here ({{ len .BlastRadius.DirectlyAffected }} direct, {{ len .BlastRadius.TransitivelyAffected }} transitive).
+                {{ end }}
+            </div>
 
-            <details class="collapsible-section" open style="margin-top: 2rem;">
-                <summary class="section-summary">Transitively Affected Callers ({{ len .BlastRadius.TransitivelyAffected }})</summary>
-                <div class="section-content">
-                    {{ if .BlastRadius.TransitivelyAffected }}
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Symbol Name</th>
-                                <th>Containing File</th>
-                                <th>Via (Trigger)</th>
-                                <th>Depth</th>
-                                <th>Dependency Type</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {{ range .BlastRadius.TransitivelyAffected }}
-                            <tr>
-                                <td><strong data-symbol-name="{{ .Name }}">{{ .Name }}</strong></td>
-                                <td>{{ .File }}</td>
-                                <td><code>{{ .Via }}</code></td>
-                                <td>{{ .Depth }}</td>
-                                <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
-                            </tr>
-                            {{ end }}
-                        </tbody>
-                    </table>
-                    {{ else }}
-                    <p class="text-muted">No transitively affected callers.</p>
-                    {{ end }}
-                </div>
-            </details>
-
+            <!-- Affected files list preserved (graph replaces tables in PR 2) -->
             <details class="collapsible-section" open style="margin-top: 2rem;">
                 <summary class="section-summary">Affected Files ({{ len .BlastRadius.AffectedFiles }})</summary>
                 <div class="section-content">
@@ -1041,7 +763,7 @@
             </details>
         </div>
 
-        <!-- Dead Code Block -->
+        <!-- Dead Code Block — preserved as-is for PR 2 visual polish -->
         <div class="block">
             <details class="collapsible-section" open>
                 <summary class="section-summary">Dead Code Analysis ({{ len .DeadCode.DeadSymbols }})</summary>
@@ -1079,18 +801,34 @@
         </div>
     </div>
 
+    <!-- File tree recursive template -->
+    {{ define "fileTreeDir" }}
+        {{ range .Children }}
+        <details class="file-tree-node">
+            <summary><span class="dir-name">{{ .Name }}</span></summary>
+            {{ template "fileTreeDir" . }}
+        </details>
+        {{ end }}
+        {{ range .Files }}
+        <div class="file-tree-leaf">
+            <span class="file-name" data-symbol-name="{{ .FullPath }}">{{ .Name }}</span>
+            {{ if .Severity }}<span class="badge badge-warning">{{ .Severity }}</span>{{ end }}
+        </div>
+        {{ end }}
+    {{ end }}
+
     <script>
         /* Side-by-side LCS Diff Alignment Algorithm */
         function diffLines(oldText, newText) {
             const oldLines = oldText.split('\n');
             const newLines = newText.split('\n');
-            
+
             const cleanOld = oldLines.map(l => l.replace(/\r$/, ''));
             const cleanNew = newLines.map(l => l.replace(/\r$/, ''));
-            
+
             const m = cleanOld.length;
             const n = cleanNew.length;
-            
+
             const dp = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
             for (let i = 1; i <= m; i++) {
                 for (let j = 1; j <= n; j++) {
@@ -1101,7 +839,7 @@
                     }
                 }
             }
-            
+
             let i = m, j = n;
             const diff = [];
             while (i > 0 || j > 0) {
@@ -1134,12 +872,18 @@
                 });
             }
 
-            // Live global search listener
+            // Live global search listener — filters findings, file groups, tree,
+            // table rows, and list items. Auto-expands ancestor directories of
+            // matching file tree leaves. Debounced at 150ms to avoid jank on
+            // large reports.
             const searchInput = document.getElementById('global-search');
+            let searchTimer;
             if (searchInput) {
                 searchInput.addEventListener('input', (e) => {
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(() => {
                     const query = e.target.value.toLowerCase().trim();
-                    
+
                     // Filter findings
                     const findings = document.querySelectorAll('.finding-item');
                     findings.forEach(item => {
@@ -1154,12 +898,28 @@
                         g.style.display = text.includes(query) ? '' : 'none';
                     });
 
-                    // Filter summary cards: hide if query non-empty and no text match
+                    // Filter summary cards
                     const cards = document.querySelectorAll('.summary-card');
                     cards.forEach(card => {
                         if (!query) { card.style.display = ''; return; }
                         const text = card.textContent.toLowerCase();
                         card.style.display = text.includes(query) ? '' : 'none';
+                    });
+
+                    // Filter file tree: hide non-matching leaves, auto-expand
+                    // ancestors of matches.
+                    const treeLeaves = document.querySelectorAll('.file-tree-leaf');
+                    treeLeaves.forEach(leaf => {
+                        const text = leaf.textContent.toLowerCase();
+                        const match = !query || text.includes(query);
+                        leaf.style.display = match ? '' : 'none';
+                        if (match && query) {
+                            let el = leaf.parentElement;
+                            while (el && el.tagName === 'DETAILS') {
+                                el.open = true;
+                                el = el.parentElement;
+                            }
+                        }
                     });
 
                     // Filter table rows
@@ -1174,7 +934,7 @@
                     listItems.forEach(li => {
                         const text = li.textContent.toLowerCase();
                         li.style.display = text.includes(query) ? '' : 'none';
-                    });
+                    }, 150);
                 });
             }
 
@@ -1189,8 +949,6 @@
                 const codeGrid = section.querySelector('.code-grid');
                 if (!collapsible || !toggleBtn || !codeGrid) return;
 
-                // Build the diff grid into collapsible once (lazy on first expand
-                // to keep initial render cheap when many findings exist).
                 let diffBuilt = false;
                 let lastChangedCount = 0;
 
@@ -1207,18 +965,18 @@
 
                     const diffGrid = document.createElement('div');
                     diffGrid.className = 'diff-grid';
-                    
+
                     const header = document.createElement('div');
                     header.className = 'diff-header';
-                    
+
                     const leftHeader = document.createElement('div');
                     leftHeader.className = 'diff-header-col';
                     leftHeader.textContent = 'Before';
-                    
+
                     const rightHeader = document.createElement('div');
                     rightHeader.className = 'diff-header-col';
                     rightHeader.textContent = 'After';
-                    
+
                     header.appendChild(leftHeader);
                     header.appendChild(rightHeader);
                     diffGrid.appendChild(header);
@@ -1234,21 +992,21 @@
                             const leftCell = document.createElement('div');
                             leftCell.className = 'diff-row-cell left empty placeholder-cell';
                             if (idx === 0) leftCell.textContent = oldText;
-                            
+
                             const rightCell = document.createElement('div');
                             rightCell.className = 'diff-row-cell right added';
-                            
+
                             const rightNum = document.createElement('span');
                             rightNum.className = 'line-num';
                             rightNum.textContent = idx + 1;
-                            
+
                             const rightText = document.createElement('span');
                             rightText.className = 'code-line-text';
                             rightText.textContent = line;
-                            
+
                             rightCell.appendChild(rightNum);
                             rightCell.appendChild(rightText);
-                            
+
                             diffGrid.appendChild(leftCell);
                             diffGrid.appendChild(rightCell);
                         });
@@ -1258,22 +1016,22 @@
                         oldLines.forEach((line, idx) => {
                             const leftCell = document.createElement('div');
                             leftCell.className = 'diff-row-cell left removed';
-                            
+
                             const leftNum = document.createElement('span');
                             leftNum.className = 'line-num';
                             leftNum.textContent = idx + 1;
-                            
+
                             const leftText = document.createElement('span');
                             leftText.className = 'code-line-text';
                             leftText.textContent = line;
-                            
+
                             leftCell.appendChild(leftNum);
                             leftCell.appendChild(leftText);
-                            
+
                             const rightCell = document.createElement('div');
                             rightCell.className = 'diff-row-cell right empty placeholder-cell';
                             if (idx === 0) rightCell.textContent = newText;
-                            
+
                             diffGrid.appendChild(leftCell);
                             diffGrid.appendChild(rightCell);
                         });
@@ -1282,11 +1040,11 @@
                         const leftCell = document.createElement('div');
                         leftCell.className = 'diff-row-cell left empty placeholder-cell';
                         leftCell.textContent = oldText;
-                        
+
                         const rightCell = document.createElement('div');
                         rightCell.className = 'diff-row-cell right empty placeholder-cell';
                         rightCell.textContent = newText;
-                        
+
                         diffGrid.appendChild(leftCell);
                         diffGrid.appendChild(rightCell);
                         changedCount = 0;
@@ -1294,31 +1052,31 @@
                         const diff = diffLines(oldText, newText);
                         let oldLineNum = 1;
                         let newLineNum = 1;
-                        
+
                         diff.forEach(item => {
                             const leftCell = document.createElement('div');
                             leftCell.className = 'diff-row-cell left';
-                            
+
                             const rightCell = document.createElement('div');
                             rightCell.className = 'diff-row-cell right';
-                            
+
                             const leftNum = document.createElement('span');
                             leftNum.className = 'line-num';
-                            
+
                             const leftText = document.createElement('span');
                             leftText.className = 'code-line-text';
-                            
+
                             const rightNum = document.createElement('span');
                             rightNum.className = 'line-num';
-                            
+
                             const rightText = document.createElement('span');
                             rightText.className = 'code-line-text';
-                            
+
                             if (item.type === 'equal') {
                                 leftCell.classList.add('equal');
                                 leftNum.textContent = oldLineNum++;
                                 leftText.textContent = item.old;
-                                
+
                                 rightCell.classList.add('equal');
                                 rightNum.textContent = newLineNum++;
                                 rightText.textContent = item.new;
@@ -1326,18 +1084,18 @@
                                 leftCell.classList.add('removed');
                                 leftNum.textContent = oldLineNum++;
                                 leftText.textContent = item.old;
-                                
+
                                 rightCell.classList.add('empty');
                                 changedCount++;
                             } else if (item.type === 'added') {
                                 leftCell.classList.add('empty');
-                                
+
                                 rightCell.classList.add('added');
                                 rightNum.textContent = newLineNum++;
                                 rightText.textContent = item.new;
                                 changedCount++;
                             }
-                            
+
                             if (item.type !== 'added') {
                                 leftCell.appendChild(leftNum);
                                 leftCell.appendChild(leftText);
@@ -1346,12 +1104,12 @@
                                 rightCell.appendChild(rightNum);
                                 rightCell.appendChild(rightText);
                             }
-                            
+
                             diffGrid.appendChild(leftCell);
                             diffGrid.appendChild(rightCell);
                         });
                     }
-                    
+
                     codeGrid.innerHTML = '';
                     codeGrid.appendChild(diffGrid);
 
@@ -1361,14 +1119,12 @@
                     }
                 };
 
-                // Expand/collapse diff
                 toggleBtn.addEventListener('click', () => {
                     if (!diffBuilt) buildDiff();
                     const isOpen = collapsible.classList.toggle('open');
                     toggleBtn.textContent = isOpen ? 'Hide diff' : 'Show diff';
                 });
 
-                // "Show only changes" — hide equal rows within this diff
                 onlyChangesBox.addEventListener('change', () => {
                     if (!diffBuilt) buildDiff();
                     const onlyChanges = onlyChangesBox.checked;
@@ -1378,9 +1134,6 @@
                             cell.style.display = onlyChanges ? 'none' : '';
                         }
                     });
-                    // Empty rows paired with an equal row also need hiding
-                    // for layout parity. Walk row-pairs (left,right) and hide
-                    // the partner of a hidden equal cell.
                     if (onlyChanges) {
                         const cells = Array.from(collapsible.querySelectorAll('.diff-row-cell'));
                         for (let i = 0; i < cells.length; i += 2) {
