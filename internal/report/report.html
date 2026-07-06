@@ -4,177 +4,595 @@
     <meta charset="UTF-8">
     <title>Fathom Impact & Compatibility Report</title>
     <style>
+        :root {
+            /* Light Theme Palette: Slate, Indigo, Emerald, Rose */
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --border-color: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent-color: #4f46e5;
+            --accent-hover: #4338ca;
+            
+            --badge-clean-bg: #ecfdf5;
+            --badge-clean-text: #065f46;
+            --badge-clean-border: #10b981;
+            
+            --badge-review-bg: #fef2f2;
+            --badge-review-text: #991b1b;
+            --badge-review-border: #ef4444;
+            
+            --badge-warning-bg: #fffbeb;
+            --badge-warning-text: #92400e;
+            --badge-warning-border: #f59e0b;
+
+            --badge-low-bg: #e0f2fe;
+            --badge-low-text: #0369a1;
+            --badge-low-border: #0ea5e9;
+
+            --transition-speed: 0.2s;
+        }
+
+        html[data-theme="dark"] {
+            /* Dark Theme Palette: Slate, Indigo, Emerald, Rose */
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #0f172a;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-color: #6366f1;
+            --accent-hover: #4f46e5;
+            
+            --badge-clean-bg: #064e3b;
+            --badge-clean-text: #a7f3d0;
+            --badge-clean-border: #059669;
+            
+            --badge-review-bg: #7f1d1d;
+            --badge-review-text: #fecaca;
+            --badge-review-border: #dc2626;
+            
+            --badge-warning-bg: #78350f;
+            --badge-warning-text: #fde68a;
+            --badge-warning-border: #d97706;
+
+            --badge-low-bg: #075985;
+            --badge-low-text: #e0f2fe;
+            --badge-low-border: #0284c7;
+        }
+
+        /* Base Transitions */
+        body, .block, .finding-item, .finding-summary, .collapsible-section, 
+        .section-summary, .search-input, .btn, table, th, td, tr, 
+        .diff-grid, .diff-header-col, .diff-row-cell {
+            transition: background-color var(--transition-speed) ease, 
+                        color var(--transition-speed) ease, 
+                        border-color var(--transition-speed) ease,
+                        box-shadow var(--transition-speed) ease;
+        }
+
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f3f4f6;
-            color: #1f2937;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
             margin: 0;
             padding: 2rem;
             line-height: 1.5;
         }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
         }
+
+        /* Header Layout */
         header {
             margin-bottom: 2rem;
-            border-bottom: 2px solid #e5e7eb;
-            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 1.5rem;
         }
+
         h1 {
             margin: 0;
             font-size: 2.25rem;
-            color: #111827;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.025em;
         }
+
         .subtitle {
-            color: #4b5563;
+            color: var(--text-secondary);
             margin-top: 0.5rem;
+            font-size: 1.1rem;
         }
-        .block {
-            background: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            padding: 1.5rem;
+
+        /* Search & Theme Controls */
+        .header-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
             margin-bottom: 2rem;
+            flex-wrap: wrap;
         }
-        .block-title {
-            font-size: 1.5rem;
+
+        .search-input {
+            flex: 1;
+            min-width: 280px;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.95rem;
             font-weight: 600;
-            margin-top: 0;
-            margin-bottom: 1rem;
-            color: #111827;
-            border-bottom: 1px solid #f3f4f6;
-            padding-bottom: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            user-select: none;
         }
-        .verdict-box {
-            padding: 1rem;
+
+        .btn-secondary {
+            background-color: var(--bg-secondary);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--bg-tertiary);
+            border-color: var(--text-secondary);
+        }
+
+        /* Blocks styling */
+        .block {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+            padding: 2rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .block-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.75rem;
+        }
+
+        /* Verdict styling */
+        .verdict-container {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .verdict-badge {
+            padding: 0.5rem 1.25rem;
             border-radius: 6px;
             font-weight: 700;
             font-size: 1.25rem;
+            text-transform: uppercase;
+            border: 1px solid transparent;
+            letter-spacing: 0.05em;
             display: inline-block;
-            margin-bottom: 1rem;
         }
+
         .verdict-clean {
-            background-color: #d1fae5;
-            color: #065f46;
-            border: 1px solid #10b981;
+            background-color: var(--badge-clean-bg);
+            color: var(--badge-clean-text);
+            border-color: var(--badge-clean-border);
         }
+
         .verdict-review {
-            background-color: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #ef4444;
+            background-color: var(--badge-review-bg);
+            color: var(--badge-review-text);
+            border-color: var(--badge-review-border);
         }
+
         .verdict-summary {
-            font-size: 1.1rem;
-            color: #374151;
+            font-size: 1.15rem;
+            font-weight: 500;
+            color: var(--text-primary);
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-            text-align: left;
-        }
-        th, td {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        th {
-            background-color: #f9fafb;
-            font-weight: 600;
-            color: #374151;
-        }
-        tr:hover {
-            background-color: #f9fafb;
-        }
+
+        /* Findings block */
         .finding-item {
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
             overflow: hidden;
+            background-color: var(--bg-secondary);
         }
+
         .finding-summary {
-            background-color: #f9fafb;
-            padding: 1rem;
+            background-color: var(--bg-tertiary);
+            padding: 1.25rem 1.5rem;
             cursor: pointer;
-            font-weight: 600;
             user-select: none;
+            list-style: none; /* Hide default marker on Chrome/Firefox */
         }
+
+        .finding-summary::-webkit-details-marker {
+            display: none; /* Hide default marker on Safari */
+        }
+
         .finding-summary:hover {
-            background-color: #f3f4f6;
+            background-color: var(--border-color);
         }
+
+        .finding-header-grid {
+            display: grid;
+            grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) minmax(300px, 1.8fr);
+            gap: 1.5rem;
+            align-items: center;
+            width: 100%;
+        }
+
+        .finding-header-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            min-width: 0;
+        }
+
+        .finding-header-item .label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+        }
+
+        .finding-header-item .val {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .finding-header-item code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            background-color: var(--bg-primary);
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+
         .finding-details {
-            padding: 1rem;
-            border-top: 1px solid #e5e7eb;
-            background-color: #ffffff;
+            padding: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-secondary);
         }
+
         .mismatch-list {
-            background-color: #fef2f2;
-            border-left: 4px solid #ef4444;
-            padding: 0.75rem 1rem;
-            margin-bottom: 1rem;
-            border-radius: 0 4px 4px 0;
+            background-color: var(--badge-review-bg);
+            border-left: 4px solid var(--badge-review-border);
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            border-radius: 0 6px 6px 0;
         }
+
         .mismatch-item {
             margin-bottom: 0.5rem;
-            font-family: monospace;
-            font-size: 0.9rem;
-            color: #991b1b;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.85rem;
+            color: var(--badge-review-text);
         }
+
         .mismatch-item:last-child {
             margin-bottom: 0;
         }
+
+        .mismatch-type {
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .mismatch-loc {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        /* Code grid before LCS substitution */
         .code-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1rem;
+            gap: 1.5rem;
             margin-top: 1rem;
         }
+
         .code-column {
-            border: 1px solid #e5e7eb;
-            border-radius: 4px;
-            background-color: #f9fafb;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--bg-primary);
             overflow: hidden;
         }
+
         .code-header {
-            background-color: #e5e7eb;
+            background-color: var(--bg-tertiary);
             padding: 0.5rem 1rem;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 0.85rem;
-            color: #4b5563;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
         }
+
         .code-body {
             margin: 0;
             padding: 1rem;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 0.85rem;
             overflow-x: auto;
             white-space: pre;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
         }
+
+        /* CSS Grid side-by-side layout generated dynamically */
+        .diff-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: var(--bg-secondary);
+        }
+
+        .diff-header {
+            display: contents;
+        }
+
+        .diff-header-col {
+            background-color: var(--bg-tertiary);
+            padding: 0.75rem 1.25rem;
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .diff-header-col:first-child {
+            border-right: 1px solid var(--border-color);
+        }
+
+        .diff-row-cell {
+            display: flex;
+            padding: 0.25rem 0.75rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .diff-row-cell.left {
+            border-right: 1px solid var(--border-color);
+        }
+
+        .diff-row-cell .line-num {
+            width: 3rem;
+            margin-right: 0.75rem;
+            color: var(--text-secondary);
+            text-align: right;
+            user-select: none;
+            border-right: 1px solid var(--border-color);
+            padding-right: 0.5rem;
+            opacity: 0.6;
+        }
+
+        .diff-row-cell .code-line-text {
+            flex: 1;
+        }
+
+        .diff-row-cell.equal {
+            color: var(--text-primary);
+        }
+
+        .diff-row-cell.removed {
+            background-color: var(--badge-review-bg);
+            color: var(--badge-review-text);
+        }
+
+        .diff-row-cell.added {
+            background-color: var(--badge-clean-bg);
+            color: var(--badge-clean-text);
+        }
+
+        .diff-row-cell.empty {
+            background-color: var(--bg-primary);
+            opacity: 0.4;
+        }
+
+        .diff-row-cell.placeholder-cell {
+            color: var(--text-secondary);
+            font-style: italic;
+            font-size: 0.85rem;
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-primary);
+        }
+
+        /* Tables & Lists styling */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 1rem;
+            text-align: left;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 0.875rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--bg-tertiary);
+            font-weight: 700;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr {
+            background-color: var(--bg-secondary);
+        }
+
+        tr:hover {
+            background-color: var(--bg-tertiary);
+        }
+
+        ul.affected-files-list {
+            margin: 0;
+            padding-left: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        ul.affected-files-list li {
+            margin-bottom: 0.5rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9rem;
+        }
+
+        /* Collapsible Section Layouts */
+        .collapsible-section {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--bg-secondary);
+            overflow: hidden;
+        }
+
+        .section-summary {
+            background-color: var(--bg-tertiary);
+            padding: 1rem 1.5rem;
+            font-weight: 700;
+            cursor: pointer;
+            user-select: none;
+            font-size: 1.15rem;
+            color: var(--text-primary);
+            border-bottom: 1px solid transparent;
+        }
+
+        .section-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .section-summary:hover {
+            background-color: var(--border-color);
+        }
+
+        .collapsible-section[open] .section-summary {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-content {
+            padding: 1.5rem;
+            background-color: var(--bg-secondary);
+        }
+
+        /* Badges */
         .badge {
             display: inline-block;
-            padding: 0.25rem 0.5rem;
+            padding: 0.25rem 0.625rem;
             font-size: 0.75rem;
-            font-weight: 600;
+            font-weight: 700;
             border-radius: 4px;
             text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border: 1px solid transparent;
         }
+
         .badge-high {
-            background-color: #fee2e2;
-            color: #991b1b;
+            background-color: var(--badge-review-bg);
+            color: var(--badge-review-text);
+            border-color: var(--badge-review-border);
         }
+
         .badge-medium {
-            background-color: #fef3c7;
-            color: #92400e;
+            background-color: var(--badge-warning-bg);
+            color: var(--badge-warning-text);
+            border-color: var(--badge-warning-border);
         }
+
         .badge-low {
-            background-color: #e0f2fe;
-            color: #0369a1;
+            background-color: var(--badge-low-bg);
+            color: var(--badge-low-text);
+            border-color: var(--badge-low-border);
         }
+
         .text-muted {
-            color: #6b7280;
+            color: var(--text-secondary);
             font-size: 0.875rem;
         }
+
+        @media (max-width: 768px) {
+            .finding-header-grid {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+            .finding-header-item .val {
+                white-space: normal;
+            }
+            .code-grid, .diff-grid {
+                grid-template-columns: 1fr;
+            }
+            .diff-header-col:first-child {
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+            .diff-row-cell.left {
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+        }
     </style>
+    <script>
+        /* Early execution switcher to prevent flash of light mode */
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+            } else {
+                const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', systemDark ? 'dark' : 'light');
+            }
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
@@ -183,14 +601,21 @@
             <div class="subtitle">Generated by Fathom Repository Impact Analysis</div>
         </header>
 
+        <div class="header-controls">
+            <input type="text" id="global-search" placeholder="Search findings, symbols, or files..." class="search-input">
+            <button id="theme-toggle" class="btn btn-secondary">Toggle Theme</button>
+        </div>
+
         <!-- Verdict Block -->
         <div class="block">
             <h2 class="block-title">Verdict</h2>
-            <div class="verdict-box {{ if eq .Verdict.Verdict "CLEAN" }}verdict-clean{{ else }}verdict-review{{ end }}">
-                {{ .Verdict.Verdict }}
-            </div>
-            <div class="verdict-summary">
-                {{ .Verdict.Summary }}
+            <div class="verdict-container">
+                <div class="verdict-badge {{ if eq .Verdict.Verdict "CLEAN" }}verdict-clean{{ else }}verdict-review{{ end }}">
+                    {{ .Verdict.Verdict }}
+                </div>
+                <div class="verdict-summary">
+                    {{ .Verdict.Summary }}
+                </div>
             </div>
         </div>
 
@@ -201,29 +626,43 @@
                 {{ range .Findings.Findings }}
                 <details class="finding-item">
                     <summary class="finding-summary">
-                        {{ .SymbolName }} <span class="text-muted">in {{ .File }}</span>
+                        <div class="finding-header-grid">
+                            <div class="finding-header-item">
+                                <span class="label">Function:</span>
+                                <span class="val"><code>{{ .SymbolName }}</code></span>
+                            </div>
+                            <div class="finding-header-item">
+                                <span class="label">File:Line:</span>
+                                <span class="val"><code>{{ .File }}{{ range $i, $m := .Mismatches }}{{ if eq $i 0 }}:{{ $m.Line }}{{ end }}{{ end }}</code></span>
+                            </div>
+                            <div class="finding-header-item">
+                                <span class="label">Problem:</span>
+                                <span class="val">{{ .ChangeDescription }}</span>
+                            </div>
+                        </div>
                     </summary>
                     <div class="finding-details">
-                        <div class="text-muted" style="margin-bottom: 0.5rem;">
+                        <div class="text-muted" style="margin-bottom: 1rem;">
                             <strong>Description:</strong> {{ .ChangeDescription }}
                         </div>
                         
                         <div class="mismatch-list">
                             {{ range .Mismatches }}
                             <div class="mismatch-item">
-                                [{{ .Type }}] {{ .Detail }} ({{ .File }}:{{ .Line }})
+                                <span class="mismatch-type">[{{ .Type }}]</span> {{ .Detail }} <span class="mismatch-loc">({{ .File }}:{{ .Line }})</span>
                             </div>
                             {{ end }}
                         </div>
 
+                        <!-- DOM structure for code block inputs -->
                         <div class="code-grid">
                             <div class="code-column">
-                                <div class="code-header">Before (Antes)</div>
-                                <pre class="code-body"><code>{{ .DisplayOldContent }}</code></pre>
+                                <div class="code-header">Before</div>
+                                <pre class="code-body"><code class="raw-old">{{ .DisplayOldContent }}</code></pre>
                             </div>
                             <div class="code-column">
-                                <div class="code-header">After (Después)</div>
-                                <pre class="code-body"><code>{{ .DisplayNewContent }}</code></pre>
+                                <div class="code-header">After</div>
+                                <pre class="code-body"><code class="raw-new">{{ .DisplayNewContent }}</code></pre>
                             </div>
                         </div>
                     </div>
@@ -238,104 +677,361 @@
         <div class="block">
             <h2 class="block-title">Blast Radius</h2>
             
-            <h3>Directly Affected ({{ len .BlastRadius.DirectlyAffected }})</h3>
-            {{ if .BlastRadius.DirectlyAffected }}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Symbol Name</th>
-                        <th>Containing File</th>
-                        <th>Via (Trigger)</th>
-                        <th>Dependency Type</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{ range .BlastRadius.DirectlyAffected }}
-                    <tr>
-                        <td><strong>{{ .Name }}</strong></td>
-                        <td>{{ .File }}</td>
-                        <td><code>{{ .Via }}</code></td>
-                        <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
-                    </tr>
+            <details class="collapsible-section" open>
+                <summary class="section-summary">Directly Affected Callers ({{ len .BlastRadius.DirectlyAffected }})</summary>
+                <div class="section-content">
+                    {{ if .BlastRadius.DirectlyAffected }}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Symbol Name</th>
+                                <th>Containing File</th>
+                                <th>Via (Trigger)</th>
+                                <th>Dependency Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{ range .BlastRadius.DirectlyAffected }}
+                            <tr>
+                                <td><strong>{{ .Name }}</strong></td>
+                                <td>{{ .File }}</td>
+                                <td><code>{{ .Via }}</code></td>
+                                <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
+                            </tr>
+                            {{ end }}
+                        </tbody>
+                    </table>
+                    {{ else }}
+                    <p class="text-muted">No directly affected callers.</p>
                     {{ end }}
-                </tbody>
-            </table>
-            {{ else }}
-            <p class="text-muted">No directly affected callers.</p>
-            {{ end }}
+                </div>
+            </details>
 
-            <h3 style="margin-top: 2rem;">Transitively Affected ({{ len .BlastRadius.TransitivelyAffected }})</h3>
-            {{ if .BlastRadius.TransitivelyAffected }}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Symbol Name</th>
-                        <th>Containing File</th>
-                        <th>Via (Trigger)</th>
-                        <th>Depth</th>
-                        <th>Dependency Type</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{ range .BlastRadius.TransitivelyAffected }}
-                    <tr>
-                        <td><strong>{{ .Name }}</strong></td>
-                        <td>{{ .File }}</td>
-                        <td><code>{{ .Via }}</code></td>
-                        <td>{{ .Depth }}</td>
-                        <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
-                    </tr>
+            <details class="collapsible-section" open style="margin-top: 2rem;">
+                <summary class="section-summary">Transitively Affected Callers ({{ len .BlastRadius.TransitivelyAffected }})</summary>
+                <div class="section-content">
+                    {{ if .BlastRadius.TransitivelyAffected }}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Symbol Name</th>
+                                <th>Containing File</th>
+                                <th>Via (Trigger)</th>
+                                <th>Depth</th>
+                                <th>Dependency Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{ range .BlastRadius.TransitivelyAffected }}
+                            <tr>
+                                <td><strong>{{ .Name }}</strong></td>
+                                <td>{{ .File }}</td>
+                                <td><code>{{ .Via }}</code></td>
+                                <td>{{ .Depth }}</td>
+                                <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
+                            </tr>
+                            {{ end }}
+                        </tbody>
+                    </table>
+                    {{ else }}
+                    <p class="text-muted">No transitively affected callers.</p>
                     {{ end }}
-                </tbody>
-            </table>
-            {{ else }}
-            <p class="text-muted">No transitively affected callers.</p>
-            {{ end }}
+                </div>
+            </details>
 
-            <h3 style="margin-top: 2rem;">Affected Files ({{ len .BlastRadius.AffectedFiles }})</h3>
-            {{ if .BlastRadius.AffectedFiles }}
-            <ul>
-                {{ range .BlastRadius.AffectedFiles }}
-                <li>{{ . }}</li>
-                {{ end }}
-            </ul>
-            {{ else }}
-            <p class="text-muted">No files affected.</p>
-            {{ end }}
+            <details class="collapsible-section" open style="margin-top: 2rem;">
+                <summary class="section-summary">Affected Files ({{ len .BlastRadius.AffectedFiles }})</summary>
+                <div class="section-content">
+                    {{ if .BlastRadius.AffectedFiles }}
+                    <ul class="affected-files-list">
+                        {{ range .BlastRadius.AffectedFiles }}
+                        <li>{{ . }}</li>
+                        {{ end }}
+                    </ul>
+                    {{ else }}
+                    <p class="text-muted">No files affected.</p>
+                    {{ end }}
+                </div>
+            </details>
         </div>
 
         <!-- Dead Code Block -->
         <div class="block">
-            <h2 class="block-title">Dead Code Analysis</h2>
-            {{ if .DeadCode.DeadSymbols }}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Symbol Name</th>
-                        <th>File</th>
-                        <th>Confidence</th>
-                        <th>Reason</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{ range .DeadCode.DeadSymbols }}
-                    <tr>
-                        <td><strong>{{ .Symbol.Name }}</strong> <span class="text-muted">({{ .Symbol.Kind }})</span></td>
-                        <td>{{ .Symbol.File }}</td>
-                        <td>
-                            <span class="badge {{ if eq .Confidence "High" }}badge-high{{ else if eq .Confidence "Medium" }}badge-medium{{ else }}badge-low{{ end }}">
-                                {{ .Confidence }}
-                            </span>
-                        </td>
-                        <td>{{ .Reason }}</td>
-                    </tr>
+            <details class="collapsible-section" open>
+                <summary class="section-summary">Dead Code Analysis ({{ len .DeadCode.DeadSymbols }})</summary>
+                <div class="section-content">
+                    {{ if .DeadCode.DeadSymbols }}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Symbol Name</th>
+                                <th>File</th>
+                                <th>Confidence</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{ range .DeadCode.DeadSymbols }}
+                            <tr>
+                                <td><strong>{{ .Symbol.Name }}</strong> <span class="text-muted">({{ .Symbol.Kind }})</span></td>
+                                <td>{{ .Symbol.File }}</td>
+                                <td>
+                                    <span class="badge {{ if eq .Confidence "High" }}badge-high{{ else if eq .Confidence "Medium" }}badge-medium{{ else }}badge-low{{ end }}">
+                                        {{ .Confidence }}
+                                    </span>
+                                </td>
+                                <td>{{ .Reason }}</td>
+                            </tr>
+                            {{ end }}
+                        </tbody>
+                    </table>
+                    {{ else }}
+                    <p class="text-muted">No dead code detected.</p>
                     {{ end }}
-                </tbody>
-            </table>
-            {{ else }}
-            <p class="text-muted">No dead code detected.</p>
-            {{ end }}
+                </div>
+            </details>
         </div>
     </div>
+
+    <script>
+        /* Side-by-side LCS Diff Alignment Algorithm */
+        function diffLines(oldText, newText) {
+            const oldLines = oldText.split('\n');
+            const newLines = newText.split('\n');
+            
+            const cleanOld = oldLines.map(l => l.replace(/\r$/, ''));
+            const cleanNew = newLines.map(l => l.replace(/\r$/, ''));
+            
+            const m = cleanOld.length;
+            const n = cleanNew.length;
+            
+            const dp = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    if (cleanOld[i - 1] === cleanNew[j - 1]) {
+                        dp[i][j] = dp[i - 1][j - 1] + 1;
+                    } else {
+                        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                    }
+                }
+            }
+            
+            let i = m, j = n;
+            const diff = [];
+            while (i > 0 || j > 0) {
+                if (i > 0 && j > 0 && cleanOld[i - 1] === cleanNew[j - 1]) {
+                    diff.unshift({ type: 'equal', old: oldLines[i - 1], new: newLines[j - 1] });
+                    i--;
+                    j--;
+                } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                    diff.unshift({ type: 'added', old: '', new: newLines[j - 1] });
+                    j--;
+                } else {
+                    diff.unshift({ type: 'removed', old: oldLines[i - 1], new: '' });
+                    i--;
+                }
+            }
+            return diff;
+        }
+
+        const isPlaceholder = (text) => text === '[ Code Not Available ]' || text === '[ Symbol Deleted ]';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Theme toggle listener
+            const themeToggle = document.getElementById('theme-toggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
+                });
+            }
+
+            // Live global search listener
+            const searchInput = document.getElementById('global-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    const query = e.target.value.toLowerCase().trim();
+                    
+                    // Filter findings
+                    const findings = document.querySelectorAll('.finding-item');
+                    findings.forEach(item => {
+                        const text = item.textContent.toLowerCase();
+                        item.style.display = text.includes(query) ? '' : 'none';
+                    });
+
+                    // Filter table rows
+                    const rows = document.querySelectorAll('tbody tr');
+                    rows.forEach(row => {
+                        const text = row.textContent.toLowerCase();
+                        row.style.display = text.includes(query) ? '' : 'none';
+                    });
+
+                    // Filter list items
+                    const listItems = document.querySelectorAll('.block ul.affected-files-list li');
+                    listItems.forEach(li => {
+                        const text = li.textContent.toLowerCase();
+                        li.style.display = text.includes(query) ? '' : 'none';
+                    });
+                });
+            }
+
+            // Client-side LCS diff computation and layout rendering
+            const codeGrids = document.querySelectorAll('.code-grid');
+            codeGrids.forEach(grid => {
+                const oldCodeEl = grid.querySelector('.raw-old');
+                const newCodeEl = grid.querySelector('.raw-new');
+                
+                if (!oldCodeEl || !newCodeEl) return;
+                
+                const oldText = oldCodeEl.textContent;
+                const newText = newCodeEl.textContent;
+                
+                const diffGrid = document.createElement('div');
+                diffGrid.className = 'diff-grid';
+                
+                const header = document.createElement('div');
+                header.className = 'diff-header';
+                
+                const leftHeader = document.createElement('div');
+                leftHeader.className = 'diff-header-col';
+                leftHeader.textContent = 'Before';
+                
+                const rightHeader = document.createElement('div');
+                rightHeader.className = 'diff-header-col';
+                rightHeader.textContent = 'After';
+                
+                header.appendChild(leftHeader);
+                header.appendChild(rightHeader);
+                diffGrid.appendChild(header);
+
+                const isOldPlaceholder = isPlaceholder(oldText);
+                const isNewPlaceholder = isPlaceholder(newText);
+
+                if (isOldPlaceholder && !isNewPlaceholder) {
+                    const newLines = newText.split('\n');
+                    newLines.forEach((line, idx) => {
+                        const leftCell = document.createElement('div');
+                        leftCell.className = 'diff-row-cell left empty placeholder-cell';
+                        if (idx === 0) leftCell.textContent = oldText;
+                        
+                        const rightCell = document.createElement('div');
+                        rightCell.className = 'diff-row-cell right added';
+                        
+                        const rightNum = document.createElement('span');
+                        rightNum.className = 'line-num';
+                        rightNum.textContent = idx + 1;
+                        
+                        const rightText = document.createElement('span');
+                        rightText.className = 'code-line-text';
+                        rightText.textContent = line;
+                        
+                        rightCell.appendChild(rightNum);
+                        rightCell.appendChild(rightText);
+                        
+                        diffGrid.appendChild(leftCell);
+                        diffGrid.appendChild(rightCell);
+                    });
+                } else if (!isOldPlaceholder && isNewPlaceholder) {
+                    const oldLines = oldText.split('\n');
+                    oldLines.forEach((line, idx) => {
+                        const leftCell = document.createElement('div');
+                        leftCell.className = 'diff-row-cell left removed';
+                        
+                        const leftNum = document.createElement('span');
+                        leftNum.className = 'line-num';
+                        leftNum.textContent = idx + 1;
+                        
+                        const leftText = document.createElement('span');
+                        leftText.className = 'code-line-text';
+                        leftText.textContent = line;
+                        
+                        leftCell.appendChild(leftNum);
+                        leftCell.appendChild(leftText);
+                        
+                        const rightCell = document.createElement('div');
+                        rightCell.className = 'diff-row-cell right empty placeholder-cell';
+                        if (idx === 0) rightCell.textContent = newText;
+                        
+                        diffGrid.appendChild(leftCell);
+                        diffGrid.appendChild(rightCell);
+                    });
+                } else if (isOldPlaceholder && isNewPlaceholder) {
+                    const leftCell = document.createElement('div');
+                    leftCell.className = 'diff-row-cell left empty placeholder-cell';
+                    leftCell.textContent = oldText;
+                    
+                    const rightCell = document.createElement('div');
+                    rightCell.className = 'diff-row-cell right empty placeholder-cell';
+                    rightCell.textContent = newText;
+                    
+                    diffGrid.appendChild(leftCell);
+                    diffGrid.appendChild(rightCell);
+                } else {
+                    const diff = diffLines(oldText, newText);
+                    let oldLineNum = 1;
+                    let newLineNum = 1;
+                    
+                    diff.forEach(item => {
+                        const leftCell = document.createElement('div');
+                        leftCell.className = 'diff-row-cell left';
+                        
+                        const rightCell = document.createElement('div');
+                        rightCell.className = 'diff-row-cell right';
+                        
+                        const leftNum = document.createElement('span');
+                        leftNum.className = 'line-num';
+                        
+                        const leftText = document.createElement('span');
+                        leftText.className = 'code-line-text';
+                        
+                        const rightNum = document.createElement('span');
+                        rightNum.className = 'line-num';
+                        
+                        const rightText = document.createElement('span');
+                        rightText.className = 'code-line-text';
+                        
+                        if (item.type === 'equal') {
+                            leftCell.classList.add('equal');
+                            leftNum.textContent = oldLineNum++;
+                            leftText.textContent = item.old;
+                            
+                            rightCell.classList.add('equal');
+                            rightNum.textContent = newLineNum++;
+                            rightText.textContent = item.new;
+                        } else if (item.type === 'removed') {
+                            leftCell.classList.add('removed');
+                            leftNum.textContent = oldLineNum++;
+                            leftText.textContent = item.old;
+                            
+                            rightCell.classList.add('empty');
+                        } else if (item.type === 'added') {
+                            leftCell.classList.add('empty');
+                            
+                            rightCell.classList.add('added');
+                            rightNum.textContent = newLineNum++;
+                            rightText.textContent = item.new;
+                        }
+                        
+                        if (item.type !== 'added') {
+                            leftCell.appendChild(leftNum);
+                            leftCell.appendChild(leftText);
+                        }
+                        if (item.type !== 'removed') {
+                            rightCell.appendChild(rightNum);
+                            rightCell.appendChild(rightText);
+                        }
+                        
+                        diffGrid.appendChild(leftCell);
+                        diffGrid.appendChild(rightCell);
+                    });
+                }
+                
+                grid.innerHTML = '';
+                grid.appendChild(diffGrid);
+            });
+        });
+    </script>
 </body>
 </html>
