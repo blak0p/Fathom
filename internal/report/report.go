@@ -2,6 +2,7 @@ package report
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/Fathom/internal/db"
 	"github.com/Fathom/internal/deadcode"
@@ -11,10 +12,20 @@ import (
 )
 
 type ReportPayload struct {
-	Verdict     VerdictBlock     `json:"verdict"`
-	Findings    FindingsBlock    `json:"findings"`
-	BlastRadius BlastRadiusBlock `json:"blast_radius"`
-	DeadCode    DeadCodeBlock    `json:"dead_code"`
+	Summary     SummaryBlock      `json:"summary"`
+	Verdict     VerdictBlock      `json:"verdict"`
+	Findings    FindingsBlock     `json:"findings"`
+	BlastRadius BlastRadiusBlock  `json:"blast_radius"`
+	DeadCode    DeadCodeBlock     `json:"dead_code"`
+}
+
+// SummaryBlock carries the executive-summary counts pre-computed by Compile().
+// The template iterates these fields directly — no counting logic in the view.
+type SummaryBlock struct {
+	TotalFindings int `json:"total_findings"`
+	WarningCount  int `json:"warning_count"`
+	AffectedFiles int `json:"affected_files"`
+	DeadCodeCount int `json:"dead_code_count"`
 }
 
 type VerdictBlock struct {
@@ -23,16 +34,26 @@ type VerdictBlock struct {
 }
 
 type Finding struct {
-	SymbolName        string              `json:"symbol_name"`
-	File              string              `json:"file"`
-	ChangeDescription string              `json:"change_description"`
-	OldContent        string              `json:"old_content"`
-	NewContent        string              `json:"new_content"`
-	Mismatches        []mismatch.Mismatch `json:"mismatches"`
+	SymbolName        string                `json:"symbol_name"`
+	File              string                `json:"file"`
+	ChangeDescription string                `json:"change_description"`
+	OldContent        string                `json:"old_content"`
+	NewContent        string                `json:"new_content"`
+	Mismatches        []mismatch.Mismatch   `json:"mismatches"`
+	AffectedCallers   []impact.AffectedSymbol `json:"affected_callers,omitempty"` // cross-referenced from blast radius where Via == SymbolName
+}
+
+// FileGroup clusters findings by file path. Compile() builds a []FileGroup
+// sorted by File so the template can iterate groups without any grouping logic.
+type FileGroup struct {
+	File     string    `json:"file"`
+	Findings []Finding `json:"findings"`
+	Severity string    `json:"severity"` // "WARNING" when len(Findings) > 0, empty otherwise
 }
 
 type FindingsBlock struct {
-	Findings []Finding `json:"findings"`
+	Findings   []Finding   `json:"findings"`     // raw slice retained for backward compatibility
+	FileGroups []FileGroup `json:"file_groups"`  // pre-grouped, sorted by file path
 }
 
 type BlastRadiusBlock struct {
@@ -54,10 +75,10 @@ func Compile(
 ) (ReportPayload, error) {
 	// 1. Compile Verdict
 	verdict := "CLEAN"
-	summary := "No signature mismatches or affected callers detected."
+	verdictSummary := "No signature mismatches or affected callers detected."
 	if len(mismatches) > 0 || len(blast.DirectlyAffected) > 0 {
 		verdict = "REVIEW"
-		summary = fmt.Sprintf("Review required: %d signature mismatch(es) and %d directly affected symbol(s) detected.", len(mismatches), len(blast.DirectlyAffected))
+		verdictSummary = fmt.Sprintf("Review required: %d signature mismatch(es) and %d directly affected symbol(s) detected.", len(mismatches), len(blast.DirectlyAffected))
 	}
 
 	// 2. Compile Findings
@@ -130,6 +151,25 @@ func Compile(
 			desc = fmt.Sprintf("Signature modified; %d call site mismatch(es) detected", len(ms))
 		}
 
+		// Cross-reference affected callers from the blast radius: any symbol
+		// whose Via == SymbolName is a caller of this changed symbol. Both
+		// DirectlyAffected and TransitivelyAffected are scanned so the finding
+		// surfaces every entry whose Via points back to it, regardless of
+		// depth bucket. The blast engine sets Via to the symbol that led to
+		// the affected entry, so a transitive caller's Via points at an
+		// intermediate (not at Foo), keeping the cross-reference precise.
+		var callers []impact.AffectedSymbol
+		for _, a := range blast.DirectlyAffected {
+			if a.Via == name {
+				callers = append(callers, a)
+			}
+		}
+		for _, a := range blast.TransitivelyAffected {
+			if a.Via == name {
+				callers = append(callers, a)
+			}
+		}
+
 		findings = append(findings, Finding{
 			SymbolName:        name,
 			File:              file,
@@ -137,16 +177,57 @@ func Compile(
 			OldContent:        oldContent,
 			NewContent:        newContent,
 			Mismatches:        ms,
+			AffectedCallers:   callers,
 		})
 	}
 
+	// Group findings by file, sorted by file path. Files without findings do
+	// not appear. Findings within a group preserve the iteration order of
+	// mismatchesBySymbol — to keep that order stable across runs we sort each
+	// group's findings by SymbolName.
+	fileGroupsMap := make(map[string][]Finding)
+	for _, f := range findings {
+		key := f.File
+		fileGroupsMap[key] = append(fileGroupsMap[key], f)
+	}
+	fileGroups := make([]FileGroup, 0, len(fileGroupsMap))
+	for file, groupFindings := range fileGroupsMap {
+		sort.Slice(groupFindings, func(i, j int) bool {
+			return groupFindings[i].SymbolName < groupFindings[j].SymbolName
+		})
+		severity := ""
+		if len(groupFindings) > 0 {
+			severity = "WARNING"
+		}
+		fileGroups = append(fileGroups, FileGroup{
+			File:     file,
+			Findings: groupFindings,
+			Severity: severity,
+		})
+	}
+	sort.Slice(fileGroups, func(i, j int) bool {
+		return fileGroups[i].File < fileGroups[j].File
+	})
+
+	// Executive summary counts. Derived from the existing slices — no separate
+	// counting passes. WarningCount == TotalFindings because every mismatch
+	// type maps to WARNING severity for now (multi-language via Tree-sitter).
+	summary := SummaryBlock{
+		TotalFindings: len(findings),
+		WarningCount:  len(findings),
+		AffectedFiles: len(blast.AffectedFiles),
+		DeadCodeCount: len(dead),
+	}
+
 	return ReportPayload{
+		Summary: summary,
 		Verdict: VerdictBlock{
 			Verdict: verdict,
-			Summary: summary,
+			Summary: verdictSummary,
 		},
 		Findings: FindingsBlock{
-			Findings: findings,
+			Findings:   findings,
+			FileGroups: fileGroups,
 		},
 		BlastRadius: BlastRadiusBlock{
 			DirectlyAffected:     blast.DirectlyAffected,

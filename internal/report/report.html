@@ -5,24 +5,24 @@
     <title>Fathom Impact & Compatibility Report</title>
     <style>
         :root {
-            /* Light Theme Palette: Slate, Indigo, Emerald, Rose */
-            --bg-primary: #f8fafc;
+            /* Light Theme Palette: warm, rich — burnt orange accent */
+            --bg-primary: #fdf6f0;          /* warm off-white */
             --bg-secondary: #ffffff;
-            --bg-tertiary: #f1f5f9;
-            --border-color: #e2e8f0;
-            --text-primary: #0f172a;
-            --text-secondary: #475569;
-            --accent-color: #4f46e5;
-            --accent-hover: #4338ca;
-            
+            --bg-tertiary: #f4e9df;
+            --border-color: #e7d8c8;
+            --text-primary: #1f1611;
+            --text-secondary: #7a5e4c;
+            --accent-color: #c2410c;        /* burnt orange */
+            --accent-hover: #9a3412;
+
             --badge-clean-bg: #ecfdf5;
             --badge-clean-text: #065f46;
             --badge-clean-border: #10b981;
-            
+
             --badge-review-bg: #fef2f2;
             --badge-review-text: #991b1b;
             --badge-review-border: #ef4444;
-            
+
             --badge-warning-bg: #fffbeb;
             --badge-warning-text: #92400e;
             --badge-warning-border: #f59e0b;
@@ -31,43 +31,65 @@
             --badge-low-text: #0369a1;
             --badge-low-border: #0ea5e9;
 
+            /* Per-card backgrounds — distinct colors per card type */
+            --card-findings-bg: #fff7ed;    /* orange-50 */
+            --card-warnings-bg: #fffbeb;    /* amber-50 */
+            --card-files-bg: #eff6ff;       /* blue-50 */
+            --card-dead-bg: #f5f3ff;        /* violet-50 */
+
+            /* Per-card text/border accents */
+            --card-findings-accent: #c2410c;
+            --card-warnings-accent: #d97706;
+            --card-files-accent: #2563eb;
+            --card-dead-accent: #7c3aed;
+
             --transition-speed: 0.2s;
         }
 
         html[data-theme="dark"] {
-            /* Dark Theme Palette: Slate, Indigo, Emerald, Rose */
-            --bg-primary: #0f172a;
-            --bg-secondary: #1e293b;
-            --bg-tertiary: #0f172a;
-            --border-color: #334155;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --accent-color: #6366f1;
-            --accent-hover: #4f46e5;
-            
+            /* Dark Theme Palette: warm dark with burnt orange accent */
+            --bg-primary: #1c1917;
+            --bg-secondary: #292524;
+            --bg-tertiary: #1c1917;
+            --border-color: #44403c;
+            --text-primary: #fafaf9;
+            --text-secondary: #a8a29e;
+            --accent-color: #fb923c;
+            --accent-hover: #fdba74;
+
             --badge-clean-bg: #064e3b;
             --badge-clean-text: #a7f3d0;
             --badge-clean-border: #059669;
-            
+
             --badge-review-bg: #7f1d1d;
             --badge-review-text: #fecaca;
             --badge-review-border: #dc2626;
-            
-            --badge-warning-bg: #78350f;
+
+            --badge-warning-bg: #451a03;
             --badge-warning-text: #fde68a;
             --badge-warning-border: #d97706;
 
             --badge-low-bg: #075985;
             --badge-low-text: #e0f2fe;
             --badge-low-border: #0284c7;
+
+            --card-findings-bg: #431407;
+            --card-warnings-bg: #451a03;
+            --card-files-bg: #172554;
+            --card-dead-bg: #2e1065;
+
+            --card-findings-accent: #fb923c;
+            --card-warnings-accent: #fbbf24;
+            --card-files-accent: #60a5fa;
+            --card-dead-accent: #a78bfa;
         }
 
         /* Base Transitions */
-        body, .block, .finding-item, .finding-summary, .collapsible-section, 
-        .section-summary, .search-input, .btn, table, th, td, tr, 
-        .diff-grid, .diff-header-col, .diff-row-cell {
-            transition: background-color var(--transition-speed) ease, 
-                        color var(--transition-speed) ease, 
+        body, .block, .finding-item, .finding-summary, .collapsible-section,
+        .section-summary, .search-input, .btn, table, th, td, tr,
+        .diff-grid, .diff-header-col, .diff-row-cell, .summary-card {
+            transition: background-color var(--transition-speed) ease,
+                        color var(--transition-speed) ease,
                         border-color var(--transition-speed) ease,
                         box-shadow var(--transition-speed) ease;
         }
@@ -89,7 +111,7 @@
         /* Header Layout */
         header {
             margin-bottom: 2rem;
-            border-bottom: 2px solid var(--border-color);
+            border-bottom: 2px solid var(--accent-color);
             padding-bottom: 1.5rem;
         }
 
@@ -131,7 +153,7 @@
 
         .search-input:focus {
             border-color: var(--accent-color);
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+            box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.15);
         }
 
         .btn {
@@ -158,6 +180,51 @@
             border-color: var(--text-secondary);
         }
 
+        /* Executive Summary Card Grid */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .summary-card {
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 0;
+        }
+
+        .summary-card.findings  { background-color: var(--card-findings-bg); border-color: var(--card-findings-accent); }
+        .summary-card.warnings  { background-color: var(--card-warnings-bg); border-color: var(--card-warnings-accent); }
+        .summary-card.files     { background-color: var(--card-files-bg);    border-color: var(--card-files-accent); }
+        .summary-card.deadcode  { background-color: var(--card-dead-bg);     border-color: var(--card-dead-accent); }
+
+        .summary-card .card-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+        }
+
+        .summary-card .card-count {
+            font-size: 2.25rem;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--text-primary);
+        }
+
+        .summary-card.findings .card-count { color: var(--card-findings-accent); }
+        .summary-card.warnings .card-count { color: var(--card-warnings-accent); }
+        .summary-card.files    .card-count { color: var(--card-files-accent); }
+        .summary-card.deadcode .card-count { color: var(--card-dead-accent); }
+
         /* Blocks styling */
         .block {
             background: var(--bg-secondary);
@@ -174,7 +241,7 @@
             margin-top: 0;
             margin-bottom: 1.5rem;
             color: var(--text-primary);
-            border-bottom: 2px solid var(--border-color);
+            border-bottom: 2px solid var(--accent-color);
             padding-bottom: 0.75rem;
         }
 
@@ -215,11 +282,56 @@
             color: var(--text-primary);
         }
 
+        /* File-group section */
+        .file-group {
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            background-color: var(--bg-secondary);
+        }
+
+        .file-group-summary {
+            background-color: var(--card-findings-bg);
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            user-select: none;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            border-left: 4px solid var(--card-findings-accent);
+        }
+
+        .file-group-summary::-webkit-details-marker { display: none; }
+
+        .file-group-summary:hover {
+            background-color: var(--bg-tertiary);
+        }
+
+        .file-group-path {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+        }
+
+        .file-group-count {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
         /* Findings block */
         .finding-item {
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            margin-bottom: 1.5rem;
+            margin: 1rem 1.25rem 1.25rem;
             overflow: hidden;
             background-color: var(--bg-secondary);
         }
@@ -229,11 +341,11 @@
             padding: 1.25rem 1.5rem;
             cursor: pointer;
             user-select: none;
-            list-style: none; /* Hide default marker on Chrome/Firefox */
+            list-style: none;
         }
 
         .finding-summary::-webkit-details-marker {
-            display: none; /* Hide default marker on Safari */
+            display: none;
         }
 
         .finding-summary:hover {
@@ -242,7 +354,7 @@
 
         .finding-header-grid {
             display: grid;
-            grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) minmax(300px, 1.8fr);
+            grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) minmax(300px, 1.8fr) auto;
             gap: 1.5rem;
             align-items: center;
             width: 100%;
@@ -287,6 +399,27 @@
             background-color: var(--bg-secondary);
         }
 
+        /* Affected Callers subsection */
+        .affected-callers {
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--card-files-accent);
+            border-radius: 8px;
+            background-color: var(--card-files-bg);
+            overflow: hidden;
+        }
+
+        .affected-callers-title {
+            padding: 0.75rem 1.25rem;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            background-color: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .affected-callers table { margin-top: 0; border: none; border-radius: 0; }
+        .affected-callers th { background-color: transparent; }
+
         .mismatch-list {
             background-color: var(--badge-review-bg);
             border-left: 4px solid var(--badge-review-border);
@@ -314,6 +447,74 @@
         .mismatch-loc {
             color: var(--text-secondary);
             font-size: 0.8rem;
+        }
+
+        /* Diff summary + collapsible diff */
+        .diff-section {
+            margin-top: 1rem;
+        }
+
+        .diff-summary {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0.9rem;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+
+        .diff-summary .diff-count {
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+
+        .diff-toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.75rem;
+        }
+
+        .diff-toggle-btn {
+            padding: 0.4rem 0.9rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-radius: 6px;
+            border: 1px solid var(--accent-color);
+            background-color: var(--bg-secondary);
+            color: var(--accent-color);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .diff-toggle-btn:hover {
+            background-color: var(--accent-color);
+            color: var(--bg-secondary);
+        }
+
+        .diff-only-changes {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .diff-only-changes input { cursor: pointer; }
+
+        .diff-collapsible {
+            display: none; /* hidden until expanded */
+        }
+
+        .diff-collapsible.open {
+            display: block;
         }
 
         /* Code grid before LCS substitution */
@@ -531,7 +732,7 @@
             padding: 0.25rem 0.625rem;
             font-size: 0.75rem;
             font-weight: 700;
-            border-radius: 4px;
+            border-radius: 999px; /* pill */
             text-transform: uppercase;
             letter-spacing: 0.05em;
             border: 1px solid transparent;
@@ -543,7 +744,8 @@
             border-color: var(--badge-review-border);
         }
 
-        .badge-medium {
+        .badge-medium,
+        .badge-warning {
             background-color: var(--badge-warning-bg);
             color: var(--badge-warning-text);
             border-color: var(--badge-warning-border);
@@ -560,7 +762,16 @@
             font-size: 0.875rem;
         }
 
+        @media (max-width: 900px) {
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
         @media (max-width: 768px) {
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
             .finding-header-grid {
                 grid-template-columns: 1fr;
                 gap: 0.5rem;
@@ -606,6 +817,27 @@
             <button id="theme-toggle" class="btn btn-secondary">Toggle Theme</button>
         </div>
 
+        <!-- Executive Summary -->
+        <h2 class="block-title" style="border-bottom: 2px solid var(--accent-color); margin-bottom: 1.25rem;">Executive Summary</h2>
+        <div class="summary-grid" data-symbol-name="summary">
+            <div class="summary-card findings">
+                <span class="card-label">Total Findings</span>
+                <span class="card-count">{{ .Summary.TotalFindings }}</span>
+            </div>
+            <div class="summary-card warnings">
+                <span class="card-label">Warnings</span>
+                <span class="card-count">{{ .Summary.WarningCount }}</span>
+            </div>
+            <div class="summary-card files">
+                <span class="card-label">Affected Files</span>
+                <span class="card-count">{{ .Summary.AffectedFiles }}</span>
+            </div>
+            <div class="summary-card deadcode">
+                <span class="card-label">Dead Code</span>
+                <span class="card-count">{{ .Summary.DeadCodeCount }}</span>
+            </div>
+        </div>
+
         <!-- Verdict Block -->
         <div class="block">
             <h2 class="block-title">Verdict</h2>
@@ -622,50 +854,104 @@
         <!-- Build-Break Findings Block -->
         <div class="block">
             <h2 class="block-title">Build-Break Findings</h2>
-            {{ if .Findings.Findings }}
-                {{ range .Findings.Findings }}
-                <details class="finding-item">
-                    <summary class="finding-summary">
-                        <div class="finding-header-grid">
-                            <div class="finding-header-item">
-                                <span class="label">Function:</span>
-                                <span class="val"><code>{{ .SymbolName }}</code></span>
-                            </div>
-                            <div class="finding-header-item">
-                                <span class="label">File:Line:</span>
-                                <span class="val"><code>{{ .File }}{{ range $i, $m := .Mismatches }}{{ if eq $i 0 }}:{{ $m.Line }}{{ end }}{{ end }}</code></span>
-                            </div>
-                            <div class="finding-header-item">
-                                <span class="label">Problem:</span>
-                                <span class="val">{{ .ChangeDescription }}</span>
-                            </div>
-                        </div>
+            {{ if .Findings.FileGroups }}
+                {{ range .Findings.FileGroups }}
+                <details class="file-group" open>
+                    <summary class="file-group-summary">
+                        <span class="file-group-path" data-symbol-name="{{ .File }}">{{ .File }}</span>
+                        <span class="badge badge-warning">{{ .Severity }}</span>
+                        <span class="file-group-count">{{ len .Findings }} finding(s)</span>
                     </summary>
-                    <div class="finding-details">
-                        <div class="text-muted" style="margin-bottom: 1rem;">
-                            <strong>Description:</strong> {{ .ChangeDescription }}
-                        </div>
-                        
-                        <div class="mismatch-list">
-                            {{ range .Mismatches }}
-                            <div class="mismatch-item">
-                                <span class="mismatch-type">[{{ .Type }}]</span> {{ .Detail }} <span class="mismatch-loc">({{ .File }}:{{ .Line }})</span>
+                    {{ range .Findings }}
+                    <details class="finding-item">
+                        <summary class="finding-summary">
+                            <div class="finding-header-grid">
+                                <div class="finding-header-item">
+                                    <span class="label">Function:</span>
+                                    <span class="val"><code data-symbol-name="{{ .SymbolName }}">{{ .SymbolName }}</code></span>
+                                </div>
+                                <div class="finding-header-item">
+                                    <span class="label">File:Line:</span>
+                                    <span class="val"><code>{{ .File }}{{ range $i, $m := .Mismatches }}{{ if eq $i 0 }}:{{ $m.Line }}{{ end }}{{ end }}</code></span>
+                                </div>
+                                <div class="finding-header-item">
+                                    <span class="label">Problem:</span>
+                                    <span class="val">{{ .ChangeDescription }}</span>
+                                </div>
+                                <div class="finding-header-item">
+                                    <span class="label">Severity:</span>
+                                    <span class="badge badge-warning">{{ .DisplaySeverity }}</span>
+                                </div>
+                            </div>
+                        </summary>
+                        <div class="finding-details">
+                            <div class="text-muted" style="margin-bottom: 1rem;">
+                                <strong>Description:</strong> {{ .ChangeDescription }}
+                            </div>
+
+                            <div class="mismatch-list">
+                                {{ range .Mismatches }}
+                                <div class="mismatch-item">
+                                    <span class="mismatch-type">[{{ .Type }}]</span> {{ .Detail }} <span class="mismatch-loc">({{ .File }}:{{ .Line }})</span>
+                                </div>
+                                {{ end }}
+                            </div>
+
+                            {{ if .AffectedCallers }}
+                            <div class="affected-callers" data-symbol-name="affected-callers-{{ .SymbolName }}">
+                                <div class="affected-callers-title">Affected Callers ({{ len .AffectedCallers }})</div>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Caller</th>
+                                            <th>File</th>
+                                            <th>Depth</th>
+                                            <th>Dependency Type</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {{ range .AffectedCallers }}
+                                        <tr>
+                                            <td><strong data-symbol-name="{{ .Name }}">{{ .Name }}</strong></td>
+                                            <td>{{ .File }}</td>
+                                            <td>{{ .Depth }}</td>
+                                            <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
+                                        </tr>
+                                        {{ end }}
+                                    </tbody>
+                                </table>
                             </div>
                             {{ end }}
-                        </div>
 
-                        <!-- DOM structure for code block inputs -->
-                        <div class="code-grid">
-                            <div class="code-column">
-                                <div class="code-header">Before</div>
-                                <pre class="code-body"><code class="raw-old">{{ .DisplayOldContent }}</code></pre>
-                            </div>
-                            <div class="code-column">
-                                <div class="code-header">After</div>
-                                <pre class="code-body"><code class="raw-new">{{ .DisplayNewContent }}</code></pre>
+                            <div class="diff-section">
+                                <span class="diff-summary">
+                                    <span class="diff-count">{{ .DisplayLinesChanged }}</span>
+                                    <span class="diff-summary-text">lines changed</span>
+                                </span>
+                                <div class="diff-toggle-row">
+                                    <button type="button" class="diff-toggle-btn">Show diff</button>
+                                    <label class="diff-only-changes">
+                                        <input type="checkbox" class="only-changes-checkbox">
+                                        Show only changes
+                                    </label>
+                                </div>
+                                <div class="diff-collapsible">
+                                    <!-- DOM structure for code block inputs -->
+                                    <div class="code-grid">
+                                        <div class="code-column">
+                                            <div class="code-header">Before</div>
+                                            <pre class="code-body"><code class="raw-old">{{ .DisplayOldContent }}</code></pre>
+                                        </div>
+                                        <div class="code-column">
+                                            <div class="code-header">After</div>
+                                            <pre class="code-body"><code class="raw-new">{{ .DisplayNewContent }}</code></pre>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </details>
+                    {{ end }}
                 </details>
                 {{ end }}
             {{ else }}
@@ -693,7 +979,7 @@
                         <tbody>
                             {{ range .BlastRadius.DirectlyAffected }}
                             <tr>
-                                <td><strong>{{ .Name }}</strong></td>
+                                <td><strong data-symbol-name="{{ .Name }}">{{ .Name }}</strong></td>
                                 <td>{{ .File }}</td>
                                 <td><code>{{ .Via }}</code></td>
                                 <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
@@ -724,7 +1010,7 @@
                         <tbody>
                             {{ range .BlastRadius.TransitivelyAffected }}
                             <tr>
-                                <td><strong>{{ .Name }}</strong></td>
+                                <td><strong data-symbol-name="{{ .Name }}">{{ .Name }}</strong></td>
                                 <td>{{ .File }}</td>
                                 <td><code>{{ .Via }}</code></td>
                                 <td>{{ .Depth }}</td>
@@ -773,7 +1059,7 @@
                         <tbody>
                             {{ range .DeadCode.DeadSymbols }}
                             <tr>
-                                <td><strong>{{ .Symbol.Name }}</strong> <span class="text-muted">({{ .Symbol.Kind }})</span></td>
+                                <td><strong data-symbol-name="{{ .Symbol.Name }}">{{ .Symbol.Name }}</strong> <span class="text-muted">({{ .Symbol.Kind }})</span></td>
                                 <td>{{ .Symbol.File }}</td>
                                 <td>
                                     <span class="badge {{ if eq .Confidence "High" }}badge-high{{ else if eq .Confidence "Medium" }}badge-medium{{ else }}badge-low{{ end }}">
@@ -861,6 +1147,21 @@
                         item.style.display = text.includes(query) ? '' : 'none';
                     });
 
+                    // Filter file groups
+                    const groups = document.querySelectorAll('.file-group');
+                    groups.forEach(g => {
+                        const text = g.textContent.toLowerCase();
+                        g.style.display = text.includes(query) ? '' : 'none';
+                    });
+
+                    // Filter summary cards: hide if query non-empty and no text match
+                    const cards = document.querySelectorAll('.summary-card');
+                    cards.forEach(card => {
+                        if (!query) { card.style.display = ''; return; }
+                        const text = card.textContent.toLowerCase();
+                        card.style.display = text.includes(query) ? '' : 'none';
+                    });
+
                     // Filter table rows
                     const rows = document.querySelectorAll('tbody tr');
                     rows.forEach(row => {
@@ -877,159 +1178,224 @@
                 });
             }
 
-            // Client-side LCS diff computation and layout rendering
-            const codeGrids = document.querySelectorAll('.code-grid');
-            codeGrids.forEach(grid => {
-                const oldCodeEl = grid.querySelector('.raw-old');
-                const newCodeEl = grid.querySelector('.raw-new');
-                
-                if (!oldCodeEl || !newCodeEl) return;
-                
-                const oldText = oldCodeEl.textContent;
-                const newText = newCodeEl.textContent;
-                
-                const diffGrid = document.createElement('div');
-                diffGrid.className = 'diff-grid';
-                
-                const header = document.createElement('div');
-                header.className = 'diff-header';
-                
-                const leftHeader = document.createElement('div');
-                leftHeader.className = 'diff-header-col';
-                leftHeader.textContent = 'Before';
-                
-                const rightHeader = document.createElement('div');
-                rightHeader.className = 'diff-header-col';
-                rightHeader.textContent = 'After';
-                
-                header.appendChild(leftHeader);
-                header.appendChild(rightHeader);
-                diffGrid.appendChild(header);
+            // Client-side LCS diff computation, collapsed-by-default diff,
+            // "X lines changed" summary, and "Show only changes" toggle.
+            const diffSections = document.querySelectorAll('.diff-section');
+            diffSections.forEach(section => {
+                const collapsible = section.querySelector('.diff-collapsible');
+                const toggleBtn = section.querySelector('.diff-toggle-btn');
+                const onlyChangesBox = section.querySelector('.only-changes-checkbox');
+                const summaryCountEl = section.querySelector('.diff-count');
+                const codeGrid = section.querySelector('.code-grid');
+                if (!collapsible || !toggleBtn || !codeGrid) return;
 
-                const isOldPlaceholder = isPlaceholder(oldText);
-                const isNewPlaceholder = isPlaceholder(newText);
+                // Build the diff grid into collapsible once (lazy on first expand
+                // to keep initial render cheap when many findings exist).
+                let diffBuilt = false;
+                let lastChangedCount = 0;
 
-                if (isOldPlaceholder && !isNewPlaceholder) {
-                    const newLines = newText.split('\n');
-                    newLines.forEach((line, idx) => {
+                const buildDiff = () => {
+                    if (diffBuilt) return;
+                    diffBuilt = true;
+
+                    const oldCodeEl = codeGrid.querySelector('.raw-old');
+                    const newCodeEl = codeGrid.querySelector('.raw-new');
+                    if (!oldCodeEl || !newCodeEl) return;
+
+                    const oldText = oldCodeEl.textContent;
+                    const newText = newCodeEl.textContent;
+
+                    const diffGrid = document.createElement('div');
+                    diffGrid.className = 'diff-grid';
+                    
+                    const header = document.createElement('div');
+                    header.className = 'diff-header';
+                    
+                    const leftHeader = document.createElement('div');
+                    leftHeader.className = 'diff-header-col';
+                    leftHeader.textContent = 'Before';
+                    
+                    const rightHeader = document.createElement('div');
+                    rightHeader.className = 'diff-header-col';
+                    rightHeader.textContent = 'After';
+                    
+                    header.appendChild(leftHeader);
+                    header.appendChild(rightHeader);
+                    diffGrid.appendChild(header);
+
+                    const isOldPlaceholder = isPlaceholder(oldText);
+                    const isNewPlaceholder = isPlaceholder(newText);
+
+                    let changedCount = 0;
+
+                    if (isOldPlaceholder && !isNewPlaceholder) {
+                        const newLines = newText.split('\n');
+                        newLines.forEach((line, idx) => {
+                            const leftCell = document.createElement('div');
+                            leftCell.className = 'diff-row-cell left empty placeholder-cell';
+                            if (idx === 0) leftCell.textContent = oldText;
+                            
+                            const rightCell = document.createElement('div');
+                            rightCell.className = 'diff-row-cell right added';
+                            
+                            const rightNum = document.createElement('span');
+                            rightNum.className = 'line-num';
+                            rightNum.textContent = idx + 1;
+                            
+                            const rightText = document.createElement('span');
+                            rightText.className = 'code-line-text';
+                            rightText.textContent = line;
+                            
+                            rightCell.appendChild(rightNum);
+                            rightCell.appendChild(rightText);
+                            
+                            diffGrid.appendChild(leftCell);
+                            diffGrid.appendChild(rightCell);
+                        });
+                        changedCount = newLines.length;
+                    } else if (!isOldPlaceholder && isNewPlaceholder) {
+                        const oldLines = oldText.split('\n');
+                        oldLines.forEach((line, idx) => {
+                            const leftCell = document.createElement('div');
+                            leftCell.className = 'diff-row-cell left removed';
+                            
+                            const leftNum = document.createElement('span');
+                            leftNum.className = 'line-num';
+                            leftNum.textContent = idx + 1;
+                            
+                            const leftText = document.createElement('span');
+                            leftText.className = 'code-line-text';
+                            leftText.textContent = line;
+                            
+                            leftCell.appendChild(leftNum);
+                            leftCell.appendChild(leftText);
+                            
+                            const rightCell = document.createElement('div');
+                            rightCell.className = 'diff-row-cell right empty placeholder-cell';
+                            if (idx === 0) rightCell.textContent = newText;
+                            
+                            diffGrid.appendChild(leftCell);
+                            diffGrid.appendChild(rightCell);
+                        });
+                        changedCount = oldLines.length;
+                    } else if (isOldPlaceholder && isNewPlaceholder) {
                         const leftCell = document.createElement('div');
                         leftCell.className = 'diff-row-cell left empty placeholder-cell';
-                        if (idx === 0) leftCell.textContent = oldText;
-                        
-                        const rightCell = document.createElement('div');
-                        rightCell.className = 'diff-row-cell right added';
-                        
-                        const rightNum = document.createElement('span');
-                        rightNum.className = 'line-num';
-                        rightNum.textContent = idx + 1;
-                        
-                        const rightText = document.createElement('span');
-                        rightText.className = 'code-line-text';
-                        rightText.textContent = line;
-                        
-                        rightCell.appendChild(rightNum);
-                        rightCell.appendChild(rightText);
-                        
-                        diffGrid.appendChild(leftCell);
-                        diffGrid.appendChild(rightCell);
-                    });
-                } else if (!isOldPlaceholder && isNewPlaceholder) {
-                    const oldLines = oldText.split('\n');
-                    oldLines.forEach((line, idx) => {
-                        const leftCell = document.createElement('div');
-                        leftCell.className = 'diff-row-cell left removed';
-                        
-                        const leftNum = document.createElement('span');
-                        leftNum.className = 'line-num';
-                        leftNum.textContent = idx + 1;
-                        
-                        const leftText = document.createElement('span');
-                        leftText.className = 'code-line-text';
-                        leftText.textContent = line;
-                        
-                        leftCell.appendChild(leftNum);
-                        leftCell.appendChild(leftText);
+                        leftCell.textContent = oldText;
                         
                         const rightCell = document.createElement('div');
                         rightCell.className = 'diff-row-cell right empty placeholder-cell';
-                        if (idx === 0) rightCell.textContent = newText;
+                        rightCell.textContent = newText;
                         
                         diffGrid.appendChild(leftCell);
                         diffGrid.appendChild(rightCell);
+                        changedCount = 0;
+                    } else {
+                        const diff = diffLines(oldText, newText);
+                        let oldLineNum = 1;
+                        let newLineNum = 1;
+                        
+                        diff.forEach(item => {
+                            const leftCell = document.createElement('div');
+                            leftCell.className = 'diff-row-cell left';
+                            
+                            const rightCell = document.createElement('div');
+                            rightCell.className = 'diff-row-cell right';
+                            
+                            const leftNum = document.createElement('span');
+                            leftNum.className = 'line-num';
+                            
+                            const leftText = document.createElement('span');
+                            leftText.className = 'code-line-text';
+                            
+                            const rightNum = document.createElement('span');
+                            rightNum.className = 'line-num';
+                            
+                            const rightText = document.createElement('span');
+                            rightText.className = 'code-line-text';
+                            
+                            if (item.type === 'equal') {
+                                leftCell.classList.add('equal');
+                                leftNum.textContent = oldLineNum++;
+                                leftText.textContent = item.old;
+                                
+                                rightCell.classList.add('equal');
+                                rightNum.textContent = newLineNum++;
+                                rightText.textContent = item.new;
+                            } else if (item.type === 'removed') {
+                                leftCell.classList.add('removed');
+                                leftNum.textContent = oldLineNum++;
+                                leftText.textContent = item.old;
+                                
+                                rightCell.classList.add('empty');
+                                changedCount++;
+                            } else if (item.type === 'added') {
+                                leftCell.classList.add('empty');
+                                
+                                rightCell.classList.add('added');
+                                rightNum.textContent = newLineNum++;
+                                rightText.textContent = item.new;
+                                changedCount++;
+                            }
+                            
+                            if (item.type !== 'added') {
+                                leftCell.appendChild(leftNum);
+                                leftCell.appendChild(leftText);
+                            }
+                            if (item.type !== 'removed') {
+                                rightCell.appendChild(rightNum);
+                                rightCell.appendChild(rightText);
+                            }
+                            
+                            diffGrid.appendChild(leftCell);
+                            diffGrid.appendChild(rightCell);
+                        });
+                    }
+                    
+                    codeGrid.innerHTML = '';
+                    codeGrid.appendChild(diffGrid);
+
+                    lastChangedCount = changedCount;
+                    if (summaryCountEl) {
+                        summaryCountEl.textContent = String(changedCount);
+                    }
+                };
+
+                // Expand/collapse diff
+                toggleBtn.addEventListener('click', () => {
+                    if (!diffBuilt) buildDiff();
+                    const isOpen = collapsible.classList.toggle('open');
+                    toggleBtn.textContent = isOpen ? 'Hide diff' : 'Show diff';
+                });
+
+                // "Show only changes" — hide equal rows within this diff
+                onlyChangesBox.addEventListener('change', () => {
+                    if (!diffBuilt) buildDiff();
+                    const onlyChanges = onlyChangesBox.checked;
+                    const rows = collapsible.querySelectorAll('.diff-row-cell');
+                    rows.forEach(cell => {
+                        if (cell.classList.contains('equal')) {
+                            cell.style.display = onlyChanges ? 'none' : '';
+                        }
                     });
-                } else if (isOldPlaceholder && isNewPlaceholder) {
-                    const leftCell = document.createElement('div');
-                    leftCell.className = 'diff-row-cell left empty placeholder-cell';
-                    leftCell.textContent = oldText;
-                    
-                    const rightCell = document.createElement('div');
-                    rightCell.className = 'diff-row-cell right empty placeholder-cell';
-                    rightCell.textContent = newText;
-                    
-                    diffGrid.appendChild(leftCell);
-                    diffGrid.appendChild(rightCell);
-                } else {
-                    const diff = diffLines(oldText, newText);
-                    let oldLineNum = 1;
-                    let newLineNum = 1;
-                    
-                    diff.forEach(item => {
-                        const leftCell = document.createElement('div');
-                        leftCell.className = 'diff-row-cell left';
-                        
-                        const rightCell = document.createElement('div');
-                        rightCell.className = 'diff-row-cell right';
-                        
-                        const leftNum = document.createElement('span');
-                        leftNum.className = 'line-num';
-                        
-                        const leftText = document.createElement('span');
-                        leftText.className = 'code-line-text';
-                        
-                        const rightNum = document.createElement('span');
-                        rightNum.className = 'line-num';
-                        
-                        const rightText = document.createElement('span');
-                        rightText.className = 'code-line-text';
-                        
-                        if (item.type === 'equal') {
-                            leftCell.classList.add('equal');
-                            leftNum.textContent = oldLineNum++;
-                            leftText.textContent = item.old;
-                            
-                            rightCell.classList.add('equal');
-                            rightNum.textContent = newLineNum++;
-                            rightText.textContent = item.new;
-                        } else if (item.type === 'removed') {
-                            leftCell.classList.add('removed');
-                            leftNum.textContent = oldLineNum++;
-                            leftText.textContent = item.old;
-                            
-                            rightCell.classList.add('empty');
-                        } else if (item.type === 'added') {
-                            leftCell.classList.add('empty');
-                            
-                            rightCell.classList.add('added');
-                            rightNum.textContent = newLineNum++;
-                            rightText.textContent = item.new;
+                    // Empty rows paired with an equal row also need hiding
+                    // for layout parity. Walk row-pairs (left,right) and hide
+                    // the partner of a hidden equal cell.
+                    if (onlyChanges) {
+                        const cells = Array.from(collapsible.querySelectorAll('.diff-row-cell'));
+                        for (let i = 0; i < cells.length; i += 2) {
+                            const left = cells[i];
+                            const right = cells[i + 1];
+                            if (!left || !right) break;
+                            const leftEqual = left.classList.contains('equal');
+                            const rightEqual = right.classList.contains('equal');
+                            if (leftEqual || rightEqual) {
+                                left.style.display = 'none';
+                                right.style.display = 'none';
+                            }
                         }
-                        
-                        if (item.type !== 'added') {
-                            leftCell.appendChild(leftNum);
-                            leftCell.appendChild(leftText);
-                        }
-                        if (item.type !== 'removed') {
-                            rightCell.appendChild(rightNum);
-                            rightCell.appendChild(rightText);
-                        }
-                        
-                        diffGrid.appendChild(leftCell);
-                        diffGrid.appendChild(rightCell);
-                    });
-                }
-                
-                grid.innerHTML = '';
-                grid.appendChild(diffGrid);
+                    }
+                });
             });
         });
     </script>
