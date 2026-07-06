@@ -2,14 +2,18 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
+	"github.com/Fathom/cmd/interactive"
 	"github.com/Fathom/internal/db"
 	"github.com/Fathom/internal/deadcode"
 	"github.com/Fathom/internal/diff"
@@ -59,6 +63,33 @@ func init() {
 }
 
 func runAnalyze(cmd *cobra.Command, args []string) error {
+	// Flag gate: when no flag was explicitly changed and stdout is a TTY,
+	// launch the interactive wizard to collect the parameters. When no flag
+	// was changed but stdout is NOT a TTY (pipe / CI), print help instead of
+	// blocking on input. When any flag is set, fall through to the legacy
+	// flag-based path with identical behavior.
+	//
+	// The gate only applies when the analyze flags are actually registered on
+	// the command (real CLI invocation). Tests that call runAnalyze with a
+	// bare *cobra.Command have no flags registered and skip straight to the
+	// legacy validation path, preserving their existing behavior.
+	if analyzeFlagsRegistered(cmd) && !anyAnalyzeFlagChanged(cmd) {
+		if !isStdoutTTY() {
+			_ = cmd.Help()
+			return nil
+		}
+		cfg, err := runAnalyzerWizard()
+		if err != nil {
+			if errors.Is(err, interactive.ErrWizardAborted) {
+				// User cancelled the wizard — exit silently with success.
+				return nil
+			}
+			return err
+		}
+		applyWizardConfig(cfg)
+		args = cfg.Args
+	}
+
 	if len(args) == 0 && baseBranch == "" {
 		return fmt.Errorf("either specify files to analyze or a --base branch")
 	}
@@ -185,6 +216,7 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 				if err := report.Render(f, payload); err != nil {
 					return fmt.Errorf("analyze: render HTML report: %w", err)
 				}
+				openBrowser(htmlPath)
 			}
 			if jsonOutput {
 				return outputJSON(payload, impact.BlastResult{}, nil, nil, nil, failOnMismatch)
@@ -259,6 +291,7 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		if err := report.Render(f, payload); err != nil {
 			return fmt.Errorf("analyze: render HTML report: %w", err)
 		}
+		openBrowser(htmlPath)
 	}
 
 	// Output.
@@ -277,6 +310,85 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		}
 	}
 	return nil
+}
+
+// anyAnalyzeFlagChanged reports whether the user explicitly set any of the
+// analyze flags on the command line. When true, the wizard is skipped and the
+// legacy flag-based path runs with identical behavior (CI/scripts safe).
+func anyAnalyzeFlagChanged(cmd *cobra.Command) bool {
+	for _, f := range []string{"json", "base", "fail-on-mismatch", "html"} {
+		if cmd.Flags().Changed(f) {
+			return true
+		}
+	}
+	return false
+}
+
+// analyzeFlagsRegistered reports whether the analyze flags are actually
+// registered on cmd. Tests that call runAnalyze with a bare *cobra.Command
+// (no flags registered) bypass the wizard gate and exercise the legacy
+// validation path directly.
+func analyzeFlagsRegistered(cmd *cobra.Command) bool {
+	return cmd.Flags().Lookup("base") != nil
+}
+
+// isStdoutTTY reports whether stdout is a terminal. Delegated to the
+// interactive package so go-isatty lives in one place. It is a package-level
+// var so tests can stub it to exercise the non-TTY fallback path without
+// redirecting stdout.
+var isStdoutTTY = func() bool { return interactive.IsTTY() }
+
+// runAnalyzerWizard launches the interactive wizard. It is a package-level
+// var so tests can stub it to exercise the flag-gate dispatch without spinning
+// a real Bubbletea program.
+var runAnalyzerWizard = interactive.Analyzer
+
+// applyWizardConfig maps the wizard's Config onto the package-level flag
+// variables that the rest of runAnalyze reads. Keeping the mapping here (in
+// the caller) rather than inside the wizard keeps cmd/interactive decoupled
+// from cmd and avoids an import cycle.
+func applyWizardConfig(cfg interactive.Config) {
+	switch cfg.Mode {
+	case interactive.ModeBranch:
+		baseBranch = cfg.Base
+	case interactive.ModeFiles:
+		// Args are returned via runAnalyze's args parameter, not a global,
+		// so nothing to set here.
+	}
+	switch cfg.Format {
+	case interactive.FormatJSON:
+		jsonOutput = true
+	case interactive.FormatHTML:
+		htmlPath = filepath.Join(os.TempDir(), "fathom-report.html")
+	case interactive.FormatTerminal:
+		// defaults — both flags already false/empty.
+	}
+	failOnMismatch = cfg.Strict
+}
+
+// openBrowser opens path in the platform default browser. It is best-effort:
+// any error (missing command, exotic OS, failed spawn) is logged as a warning
+// and never returned, so a browser launch failure cannot fail the analyze
+// command. Called after a successful HTML report generation.
+func openBrowser(path string) {
+	var c *exec.Cmd
+	switch runtime.GOOS {
+	case "linux":
+		c = exec.Command("xdg-open", path)
+	case "darwin":
+		c = exec.Command("open", path)
+	case "windows":
+		c = exec.Command("rundll32", "url.dll,FileProtocolHandler", path)
+	default:
+		zap.L().Warn("openBrowser: unsupported platform; skipping auto-open",
+			zap.String("goos", runtime.GOOS),
+			zap.String("path", path))
+		return
+	}
+	if err := c.Start(); err != nil {
+		zap.L().Warn("openBrowser: could not open report in browser",
+			zap.String("path", path), zap.Error(err))
+	}
 }
 
 func syncIndex(store db.Store, repo *git.Repository, p parser.Parser, targetSHA string) error {

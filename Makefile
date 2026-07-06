@@ -13,7 +13,7 @@
 #   help        Show this help
 
 GO       := go
-CC       := gcc-16
+CC       := gcc
 CGO_ENABLED := 1
 GOFLAGS  :=
 BINARY   ?= fathom
