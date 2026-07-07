@@ -1,0 +1,38 @@
+{{ define "deadcode" }}
+        <!-- Dead Code Block — preserved as-is for PR 2 visual polish -->
+        <div class="block">
+            <details class="collapsible-section" open>
+                <summary class="section-summary">Dead Code Analysis ({{ len .DeadCode.DeadSymbols }})</summary>
+                <div class="section-content">
+                    {{ if .DeadCode.DeadSymbols }}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Symbol Name</th>
+                                <th>File</th>
+                                <th>Confidence</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{ range .DeadCode.DeadSymbols }}
+                            <tr>
+                                <td><strong data-symbol-name="{{ .Symbol.Name }}">{{ .Symbol.Name }}</strong> <span class="text-muted">({{ .Symbol.Kind }})</span></td>
+                                <td>{{ .Symbol.File }}</td>
+                                <td>
+                                    <span class="badge {{ if eq .Confidence "High" }}badge-high{{ else if eq .Confidence "Medium" }}badge-medium{{ else }}badge-low{{ end }}">
+                                        {{ .Confidence }}
+                                    </span>
+                                </td>
+                                <td>{{ .Reason }}</td>
+                            </tr>
+                            {{ end }}
+                        </tbody>
+                    </table>
+                    {{ else }}
+                    <p class="text-muted">No dead code detected.</p>
+                    {{ end }}
+                </div>
+            </details>
+        </div>
+{{ end }}

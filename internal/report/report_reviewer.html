@@ -1,0 +1,59 @@
+{{ define "reviewer" }}
+        <!-- Reviewer Assistant Block -->
+        <div class="block">
+            <h2 class="block-title">Reviewer Assistant</h2>
+            {{ if .ReviewAssistant.ImpactTable }}
+                <h3 style="margin-bottom: 1rem;">Prioritized Impact</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>File</th>
+                            <th>Change Type</th>
+                            <th>Callers</th>
+                            <th>Affected Files</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{ range .ReviewAssistant.ImpactTable }}
+                        <tr>
+                            <td><strong data-symbol-name="{{ .SymbolName }}">{{ .SymbolName }}</strong></td>
+                            <td>{{ .File }}</td>
+                            <td><span class="badge {{ if eq .ChangeType "breaking" }}badge-high{{ else if eq .ChangeType "override" }}badge-warning{{ else }}badge-low{{ end }}">{{ .ChangeType }}</span></td>
+                            <td>{{ .CallerCount }}</td>
+                            <td>{{ .AffectedFilesCount }}</td>
+                        </tr>
+                        {{ end }}
+                    </tbody>
+                </table>
+            {{ end }}
+
+            {{ if .ReviewAssistant.Questions }}
+                <h3 style="margin: 1.5rem 0 1rem;">Reviewer Questions</h3>
+                {{ range .ReviewAssistant.Questions }}
+                <div class="finding-item" style="margin: 0.5rem 0; padding: 1rem;">
+                    <div class="finding-header-grid" style="grid-template-columns: 1fr auto;">
+                        <div>{{ .Text }}</div>
+                        <div><span class="badge {{ if eq .Category "signature" }}badge-high{{ else if eq .Category "override" }}badge-warning{{ else }}badge-low{{ end }}">{{ .Category }}</span></div>
+                    </div>
+                </div>
+                {{ end }}
+            {{ end }}
+
+            {{ if .ReviewAssistant.Actions }}
+                <h3 style="margin: 1.5rem 0 1rem;">Recommended Actions</h3>
+                <ul style="list-style: none; padding: 0;">
+                    {{ range .ReviewAssistant.Actions }}
+                    <li style="padding: 0.75rem 1rem; margin-bottom: 0.5rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary);">
+                        <span class="badge {{ if eq .Category "review" }}badge-high{{ else if eq .Category "deadcode" }}badge-low{{ else }}badge-warning{{ end }}" style="margin-right: 0.75rem;">{{ .Category }}</span>
+                        {{ .Text }}
+                    </li>
+                    {{ end }}
+                </ul>
+            {{ end }}
+
+            {{ if not .ReviewAssistant.ImpactTable }}
+            <p class="text-muted">No reviewer notes for this change.</p>
+            {{ end }}
+        </div>
+{{ end }}

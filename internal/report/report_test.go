@@ -2,6 +2,7 @@ package report
 
 import (
 	"bytes"
+	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -506,6 +507,17 @@ func TestCompileAndRender(t *testing.T) {
 		// Layout classes:
 		"summary-grid",
 		"file-group",
+		// Reviewer Assistant section (PR 3):
+		"Reviewer Assistant",
+		"Prioritized Impact",
+		"Recommended Actions",
+		// Reviewer content from the populated payload:
+		// OldFunc has 1 caller (Via=OldFunc) → review action fires, no
+		// signature question (needs >=2 callers), no spread (needs >=3 files).
+		// No questions fire for this payload, so the "Reviewer Questions"
+		// header is intentionally NOT asserted (it's conditional in template).
+		"Review calls to `OldFunc`",
+		"Verify `UnusedFunc` is no longer used", // deadcode action
 	}
 	for _, sub := range expectedSubstrings {
 		if !strings.Contains(htmlOutput, sub) {
@@ -571,9 +583,352 @@ func TestCompileAndRender(t *testing.T) {
 		t.Fatalf("Render empty: %v", err)
 	}
 	htmlEmpty := bufEmpty.String()
-	for _, sub := range []string{"Executive Summary", "No signature mismatches detected."} {
+	for _, sub := range []string{"Executive Summary", "No signature mismatches detected.", "Reviewer Assistant", "No reviewer notes for this change."} {
 		if !strings.Contains(htmlEmpty, sub) {
 			t.Errorf("empty rendered HTML missing: %q", sub)
 		}
+	}
+}
+
+// --- Reviewer Assistant tests (PR 3) -----------------------------------------
+
+// compileWithFindings is a helper that builds a payload from a set of named
+// findings, each carrying a caller count spread across distinct files. It
+// keeps the new reviewer tests focused on assistant behavior instead of
+// repeating store/workspace boilerplate.
+func compileWithFindings(t *testing.T, findingSpecs []findingSpec, deadSyms []deadcode.DeadSymbol) ReportPayload {
+	t.Helper()
+	store := testStore(t)
+
+	// Persist old symbols so Compile can find them; each finding needs an old
+	// symbol with content for the cross-reference to resolve.
+	var oldSyms []symbol.Symbol
+	for _, fs := range findingSpecs {
+		oldSyms = append(oldSyms, symbol.Symbol{
+			Name:    fs.name,
+			Kind:    symbol.KindFunction,
+			File:    fs.file,
+			Content: "func " + fs.name + "() {}",
+		})
+	}
+	if err := store.PutSymbols(oldSyms); err != nil {
+		t.Fatalf("PutSymbols: %v", err)
+	}
+
+	workspaceDefs := map[string][]symbol.Symbol{}
+	for _, fs := range findingSpecs {
+		workspaceDefs[fs.name] = []symbol.Symbol{{
+			Name:    fs.name,
+			Kind:    symbol.KindFunction,
+			File:    fs.file,
+			Content: "func " + fs.name + "(x int) {}",
+		}}
+	}
+
+	var mismatches []mismatch.Mismatch
+	var blast impact.BlastResult
+	seenFiles := map[string]bool{}
+	for _, fs := range findingSpecs {
+		mt := mismatch.MismatchArity
+		if fs.override {
+			mt = mismatch.MismatchOverride
+		}
+		mismatches = append(mismatches, mismatch.Mismatch{
+			Type:       mt,
+			SymbolName: fs.name,
+			File:       fs.file,
+			Line:       1,
+			Detail:     "test mismatch",
+		})
+		// Build callers: each caller's Via must equal the finding's symbol name
+		// so Compile attaches it. Callers are spread across fs.callerFiles in
+		// order; if a finding has 5 callers and 2 files, callers 1-2 use file
+		// A and 3-5 use file B (dedup → 2 files).
+		for i := 0; i < fs.callerCount; i++ {
+			file := fs.callerFiles[i%len(fs.callerFiles)]
+			if !seenFiles[file] {
+				seenFiles[file] = true
+				blast.AffectedFiles = append(blast.AffectedFiles, file)
+			}
+			blast.DirectlyAffected = append(blast.DirectlyAffected, impact.AffectedSymbol{
+				Name:           fmt.Sprintf("%sCaller%d", fs.name, i+1),
+				File:           file,
+				Depth:          1,
+				Via:            fs.name,
+				DependencyType: "direct_call",
+			})
+		}
+	}
+
+	payload, err := Compile(store, blast, mismatches, deadSyms, workspaceDefs)
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	return payload
+}
+
+type findingSpec struct {
+	name        string
+	file        string
+	callerCount int
+	callerFiles []string
+	override    bool
+}
+
+func TestCompileReviewAssistantImpactOrder(t *testing.T) {
+	// Two breaking findings: Foo with 5 callers, Bar with 2 callers. Foo must
+	// sort first (desc by CallerCount). A third finding Baz with 2 callers
+	// and override classification verifies the breaking-before-override
+	// tie-break at equal CallerCount.
+	payload := compileWithFindings(t, []findingSpec{
+		{name: "Foo", file: "foo.go", callerCount: 5, callerFiles: []string{"a.go", "b.go", "c.go", "d.go", "e.go"}},
+		{name: "Bar", file: "bar.go", callerCount: 2, callerFiles: []string{"a.go", "b.go"}},
+		{name: "Baz", file: "baz.go", callerCount: 2, callerFiles: []string{"x.go"}, override: true},
+	}, nil)
+
+	rows := payload.ReviewAssistant.ImpactTable
+	if len(rows) != 3 {
+		t.Fatalf("ImpactTable len = %d, want 3", len(rows))
+	}
+	if rows[0].SymbolName != "Foo" {
+		t.Errorf("ImpactTable[0].SymbolName = %q, want Foo (highest caller count)", rows[0].SymbolName)
+	}
+	if rows[0].CallerCount != 5 {
+		t.Errorf("ImpactTable[0].CallerCount = %d, want 5", rows[0].CallerCount)
+	}
+	// Tie at CallerCount=2: breaking (Bar) must precede override (Baz).
+	if rows[1].SymbolName != "Bar" {
+		t.Errorf("ImpactTable[1].SymbolName = %q, want Bar (breaking sorts before override)", rows[1].SymbolName)
+	}
+	if rows[1].ChangeType != "breaking" {
+		t.Errorf("ImpactTable[1].ChangeType = %q, want breaking", rows[1].ChangeType)
+	}
+	if rows[2].SymbolName != "Baz" {
+		t.Errorf("ImpactTable[2].SymbolName = %q, want Baz (override sorts after breaking)", rows[2].SymbolName)
+	}
+	if rows[2].ChangeType != "override" {
+		t.Errorf("ImpactTable[2].ChangeType = %q, want override", rows[2].ChangeType)
+	}
+	// Foo spread across 5 files.
+	if rows[0].AffectedFilesCount != 5 {
+		t.Errorf("ImpactTable[0].AffectedFilesCount = %d, want 5", rows[0].AffectedFilesCount)
+	}
+}
+
+func TestCompileReviewAssistantQuestions(t *testing.T) {
+	// Sig: breaking with 3 callers across 3 files → signature + spread questions.
+	// Over: override finding → override question.
+	// NoCall: breaking with 0 callers → internal change-type + internal question.
+	// Below: breaking with 1 caller in 1 file → no signature (needs >=2),
+	//        no spread (needs >=3 files). Used for the below-threshold check.
+	payload := compileWithFindings(t, []findingSpec{
+		{name: "Sig", file: "sig.go", callerCount: 3, callerFiles: []string{"a.go", "b.go", "c.go"}},
+		{name: "Over", file: "over.go", callerCount: 1, callerFiles: []string{"a.go"}, override: true},
+		{name: "NoCall", file: "nocall.go", callerCount: 0, callerFiles: []string{"a.go"}},
+		{name: "Below", file: "below.go", callerCount: 1, callerFiles: []string{"a.go"}},
+	}, nil)
+
+	questions := payload.ReviewAssistant.Questions
+	findQ := func(symContains, category string) *ReviewerQuestion {
+		for i := range questions {
+			if strings.Contains(questions[i].Text, symContains) && questions[i].Category == category {
+				return &questions[i]
+			}
+		}
+		return nil
+	}
+
+	if q := findQ("`Sig`", "signature"); q == nil {
+		t.Errorf("missing signature question for Sig; questions=%+v", questions)
+	} else {
+		if !strings.Contains(q.Text, "3 callers") {
+			t.Errorf("signature question text = %q, want it to contain '3 callers'", q.Text)
+		}
+		if !strings.Contains(q.Text, "did you verify all callers?") {
+			t.Errorf("signature question text = %q, want it to contain 'did you verify all callers?'", q.Text)
+		}
+	}
+
+	if q := findQ("`Over`", "override"); q == nil {
+		t.Errorf("missing override question for Over; questions=%+v", questions)
+	} else if !strings.Contains(q.Text, "parent contract still match") {
+		t.Errorf("override question text = %q, want 'parent contract still match'", q.Text)
+	}
+
+	if q := findQ("`NoCall`", "internal"); q == nil {
+		t.Errorf("missing internal question for NoCall; questions=%+v", questions)
+	} else if !strings.Contains(q.Text, "no callers in the blast radius") {
+		t.Errorf("internal question text = %q, want 'no callers in the blast radius'", q.Text)
+	}
+
+	if q := findQ("`Sig`", "spread"); q == nil {
+		t.Errorf("missing spread question for Sig (3 files); questions=%+v", questions)
+	} else if !strings.Contains(q.Text, "3 files") {
+		t.Errorf("spread question text = %q, want '3 files'", q.Text)
+	}
+
+	// Below-threshold: Below has CallerCount=1 so MUST NOT produce a signature
+	// question, and AffectedFilesCount=1 so MUST NOT produce a spread question.
+	for _, q := range questions {
+		if strings.Contains(q.Text, "`Below`") {
+			t.Errorf("Below must not produce any question (below all thresholds); got %q (%s)", q.Text, q.Category)
+		}
+	}
+	// NoCall has CallerCount=0 and ChangeType=internal, so it gets the internal
+	// question but NOT a signature question.
+	for _, q := range questions {
+		if strings.Contains(q.Text, "`NoCall`") && q.Category == "signature" {
+			t.Errorf("NoCall must not produce a signature question (CallerCount=0); got %q", q.Text)
+		}
+	}
+}
+
+func TestCompileReviewAssistantActions(t *testing.T) {
+	// Review: 1 caller across 2 files → review action lists both files.
+	// Dead: 3 dead symbols → 3 deadcode actions, each echoing confidence.
+	// Override: 1 override finding → override action echoing the file.
+	dead := []deadcode.DeadSymbol{
+		{Symbol: symbol.Symbol{Name: "Dead1"}, Confidence: deadcode.ConfidenceHigh, Reason: "x"},
+		{Symbol: symbol.Symbol{Name: "Dead2"}, Confidence: deadcode.ConfidenceMedium, Reason: "x"},
+		{Symbol: symbol.Symbol{Name: "Dead3"}, Confidence: deadcode.ConfidenceLow, Reason: "x"},
+	}
+	payload := compileWithFindings(t, []findingSpec{
+		{name: "Rev", file: "rev.go", callerCount: 2, callerFiles: []string{"a.go", "b.go"}},
+		{name: "Ovr", file: "iface.go", callerCount: 0, callerFiles: []string{"a.go"}, override: true},
+	}, dead)
+
+	actions := payload.ReviewAssistant.Actions
+
+	// Review-calls action lists both a.go and b.go.
+	foundReview := false
+	for _, a := range actions {
+		if a.Category == "review" && strings.Contains(a.Text, "`Rev`") {
+			foundReview = true
+			if !strings.Contains(a.Text, "a.go") || !strings.Contains(a.Text, "b.go") {
+				t.Errorf("review action text = %q, want it to contain both a.go and b.go", a.Text)
+			}
+		}
+	}
+	if !foundReview {
+		t.Errorf("missing review action for Rev; actions=%+v", actions)
+	}
+
+	// Override action includes the finding file (iface.go).
+	foundOverride := false
+	for _, a := range actions {
+		if a.Category == "override" && strings.Contains(a.Text, "`Ovr`") {
+			foundOverride = true
+			if !strings.Contains(a.Text, "iface.go") {
+				t.Errorf("override action text = %q, want it to contain iface.go", a.Text)
+			}
+		}
+	}
+	if !foundOverride {
+		t.Errorf("missing override action for Ovr; actions=%+v", actions)
+	}
+
+	// Three deadcode actions, one per dead symbol, echoing each confidence.
+	// Action text is `Verify `DeadN` is no longer used (dead code, <Conf>)`.
+	deadActions := 0
+	wantConf := map[string]bool{"High": false, "Medium": false, "Low": false}
+	for _, a := range actions {
+		if a.Category == "deadcode" {
+			deadActions++
+			for c := range wantConf {
+				if strings.Contains(a.Text, "dead code, "+c+")") {
+					wantConf[c] = true
+				}
+			}
+		}
+	}
+	if deadActions != 3 {
+		t.Errorf("deadcode actions count = %d, want 3", deadActions)
+	}
+	for c, seen := range wantConf {
+		if !seen {
+			t.Errorf("missing deadcode action echoing confidence %q", c)
+		}
+	}
+}
+
+func TestCompileReviewAssistantEmpty(t *testing.T) {
+	store := testStore(t)
+	payload, err := Compile(store, impact.BlastResult{}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	if len(payload.ReviewAssistant.ImpactTable) != 0 {
+		t.Errorf("ImpactTable len = %d, want 0", len(payload.ReviewAssistant.ImpactTable))
+	}
+	if len(payload.ReviewAssistant.Questions) != 0 {
+		t.Errorf("Questions len = %d, want 0", len(payload.ReviewAssistant.Questions))
+	}
+	if len(payload.ReviewAssistant.Actions) != 0 {
+		t.Errorf("Actions len = %d, want 0", len(payload.ReviewAssistant.Actions))
+	}
+}
+
+func TestCompileExpandedSummary(t *testing.T) {
+	// Mixed payload: 1 breaking (with callers), 1 override, 1 internal (no callers).
+	// Direct callers: 3 (the breaking finding's callers). Transitive: 2 (added below).
+	payload := compileWithFindings(t, []findingSpec{
+		{name: "Brk", file: "brk.go", callerCount: 3, callerFiles: []string{"a.go", "b.go", "c.go"}},
+		{name: "Ovr", file: "ovr.go", callerCount: 1, callerFiles: []string{"a.go"}, override: true},
+		{name: "Int", file: "int.go", callerCount: 0, callerFiles: []string{"a.go"}},
+	}, nil)
+
+	// compileWithFindings only seeds DirectlyAffected; add transitive for the
+	// summary test so TransitiveCallers is non-zero. We re-run Compile with a
+	// blast that has transitive entries. Easier path: rebuild via the helper
+	// then assert only DirectCallers; for TransitiveCallers do a direct call.
+	if payload.Summary.BreakingCount != 1 {
+		t.Errorf("BreakingCount = %d, want 1", payload.Summary.BreakingCount)
+	}
+	if payload.Summary.OverrideCount != 1 {
+		t.Errorf("OverrideCount = %d, want 1", payload.Summary.OverrideCount)
+	}
+	if payload.Summary.InternalCount != 1 {
+		t.Errorf("InternalCount = %d, want 1", payload.Summary.InternalCount)
+	}
+	if payload.Summary.DirectCallers != 4 { // 3 (Brk) + 1 (Ovr)
+		t.Errorf("DirectCallers = %d, want 4", payload.Summary.DirectCallers)
+	}
+
+	// Separate compile with explicit transitive entries to validate the
+	// TransitiveCallers field.
+	store := testStore(t)
+	oldSyms := []symbol.Symbol{
+		{Name: "Foo", Kind: symbol.KindFunction, File: "foo.go", Content: "func Foo() {}"},
+	}
+	if err := store.PutSymbols(oldSyms); err != nil {
+		t.Fatalf("PutSymbols: %v", err)
+	}
+	workspaceDefs := map[string][]symbol.Symbol{
+		"Foo": {{Name: "Foo", Kind: symbol.KindFunction, File: "foo.go", Content: "func Foo(x int) {}"}},
+	}
+	mismatches := []mismatch.Mismatch{
+		{Type: mismatch.MismatchArity, SymbolName: "Foo", File: "foo.go", Line: 1, Detail: "x"},
+	}
+	blast := impact.BlastResult{
+		DirectlyAffected: []impact.AffectedSymbol{
+			{Name: "D1", File: "d1.go", Depth: 1, Via: "Foo", DependencyType: "direct_call"},
+		},
+		TransitivelyAffected: []impact.AffectedSymbol{
+			{Name: "T1", File: "t1.go", Depth: 2, Via: "Foo", DependencyType: "direct_call"},
+			{Name: "T2", File: "t2.go", Depth: 2, Via: "Foo", DependencyType: "direct_call"},
+		},
+	}
+	payload2, err := Compile(store, blast, mismatches, nil, workspaceDefs)
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	if payload2.Summary.DirectCallers != 1 {
+		t.Errorf("DirectCallers = %d, want 1", payload2.Summary.DirectCallers)
+	}
+	if payload2.Summary.TransitiveCallers != 2 {
+		t.Errorf("TransitiveCallers = %d, want 2", payload2.Summary.TransitiveCallers)
+	}
+	if payload2.Summary.BreakingCount != 1 {
+		t.Errorf("BreakingCount = %d, want 1", payload2.Summary.BreakingCount)
 	}
 }
