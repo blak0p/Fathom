@@ -1,0 +1,352 @@
+{{ define "js-head" }}
+    <script>
+        /* Early execution switcher to prevent flash of light mode */
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+            } else {
+                const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', systemDark ? 'dark' : 'light');
+            }
+        })();
+    </script>
+{{ end }}
+
+{{ define "js" }}
+    <script>
+        /* Side-by-side LCS Diff Alignment Algorithm */
+        function diffLines(oldText, newText) {
+            const oldLines = oldText.split('\n');
+            const newLines = newText.split('\n');
+
+            const cleanOld = oldLines.map(l => l.replace(/\r$/, ''));
+            const cleanNew = newLines.map(l => l.replace(/\r$/, ''));
+
+            const m = cleanOld.length;
+            const n = cleanNew.length;
+
+            const dp = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    if (cleanOld[i - 1] === cleanNew[j - 1]) {
+                        dp[i][j] = dp[i - 1][j - 1] + 1;
+                    } else {
+                        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                    }
+                }
+            }
+
+            let i = m, j = n;
+            const diff = [];
+            while (i > 0 || j > 0) {
+                if (i > 0 && j > 0 && cleanOld[i - 1] === cleanNew[j - 1]) {
+                    diff.unshift({ type: 'equal', old: oldLines[i - 1], new: newLines[j - 1] });
+                    i--;
+                    j--;
+                } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                    diff.unshift({ type: 'added', old: '', new: newLines[j - 1] });
+                    j--;
+                } else {
+                    diff.unshift({ type: 'removed', old: oldLines[i - 1], new: '' });
+                    i--;
+                }
+            }
+            return diff;
+        }
+
+        const isPlaceholder = (text) => text === '[ Code Not Available ]' || text === '[ Symbol Deleted ]';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Theme toggle listener
+            const themeToggle = document.getElementById('theme-toggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
+                });
+            }
+
+            // Live global search listener — filters findings, file groups, tree,
+            // table rows, and list items. Auto-expands ancestor directories of
+            // matching file tree leaves. Debounced at 150ms to avoid jank on
+            // large reports.
+            const searchInput = document.getElementById('global-search');
+            let searchTimer;
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(() => {
+                    const query = e.target.value.toLowerCase().trim();
+
+                    // Filter findings
+                    const findings = document.querySelectorAll('.finding-item');
+                    findings.forEach(item => {
+                        const text = item.textContent.toLowerCase();
+                        item.style.display = text.includes(query) ? '' : 'none';
+                    });
+
+                    // Filter file groups
+                    const groups = document.querySelectorAll('.file-group');
+                    groups.forEach(g => {
+                        const text = g.textContent.toLowerCase();
+                        g.style.display = text.includes(query) ? '' : 'none';
+                    });
+
+                    // Filter summary cards
+                    const cards = document.querySelectorAll('.summary-card');
+                    cards.forEach(card => {
+                        if (!query) { card.style.display = ''; return; }
+                        const text = card.textContent.toLowerCase();
+                        card.style.display = text.includes(query) ? '' : 'none';
+                    });
+
+                    // Filter file tree: hide non-matching leaves, auto-expand
+                    // ancestors of matches.
+                    const treeLeaves = document.querySelectorAll('.file-tree-leaf');
+                    treeLeaves.forEach(leaf => {
+                        const text = leaf.textContent.toLowerCase();
+                        const match = !query || text.includes(query);
+                        leaf.style.display = match ? '' : 'none';
+                        if (match && query) {
+                            let el = leaf.parentElement;
+                            while (el && el.tagName === 'DETAILS') {
+                                el.open = true;
+                                el = el.parentElement;
+                            }
+                        }
+                    });
+
+                    // Filter table rows
+                    const rows = document.querySelectorAll('tbody tr');
+                    rows.forEach(row => {
+                        const text = row.textContent.toLowerCase();
+                        row.style.display = text.includes(query) ? '' : 'none';
+                    });
+
+                    // Filter list items
+                    const listItems = document.querySelectorAll('.block ul.affected-files-list li');
+                    listItems.forEach(li => {
+                        const text = li.textContent.toLowerCase();
+                        li.style.display = text.includes(query) ? '' : 'none';
+                    }, 150);
+                });
+            }
+
+            // Client-side LCS diff computation, collapsed-by-default diff,
+            // "X lines changed" summary, and "Show only changes" toggle.
+            const diffSections = document.querySelectorAll('.diff-section');
+            diffSections.forEach(section => {
+                const collapsible = section.querySelector('.diff-collapsible');
+                const toggleBtn = section.querySelector('.diff-toggle-btn');
+                const onlyChangesBox = section.querySelector('.only-changes-checkbox');
+                const summaryCountEl = section.querySelector('.diff-count');
+                const codeGrid = section.querySelector('.code-grid');
+                if (!collapsible || !toggleBtn || !codeGrid) return;
+
+                let diffBuilt = false;
+                let lastChangedCount = 0;
+
+                const buildDiff = () => {
+                    if (diffBuilt) return;
+                    diffBuilt = true;
+
+                    const oldCodeEl = codeGrid.querySelector('.raw-old');
+                    const newCodeEl = codeGrid.querySelector('.raw-new');
+                    if (!oldCodeEl || !newCodeEl) return;
+
+                    const oldText = oldCodeEl.textContent;
+                    const newText = newCodeEl.textContent;
+
+                    const diffGrid = document.createElement('div');
+                    diffGrid.className = 'diff-grid';
+
+                    const header = document.createElement('div');
+                    header.className = 'diff-header';
+
+                    const leftHeader = document.createElement('div');
+                    leftHeader.className = 'diff-header-col';
+                    leftHeader.textContent = 'Before';
+
+                    const rightHeader = document.createElement('div');
+                    rightHeader.className = 'diff-header-col';
+                    rightHeader.textContent = 'After';
+
+                    header.appendChild(leftHeader);
+                    header.appendChild(rightHeader);
+                    diffGrid.appendChild(header);
+
+                    const isOldPlaceholder = isPlaceholder(oldText);
+                    const isNewPlaceholder = isPlaceholder(newText);
+
+                    let changedCount = 0;
+
+                    if (isOldPlaceholder && !isNewPlaceholder) {
+                        const newLines = newText.split('\n');
+                        newLines.forEach((line, idx) => {
+                            const leftCell = document.createElement('div');
+                            leftCell.className = 'diff-row-cell left empty placeholder-cell';
+                            if (idx === 0) leftCell.textContent = oldText;
+
+                            const rightCell = document.createElement('div');
+                            rightCell.className = 'diff-row-cell right added';
+
+                            const rightNum = document.createElement('span');
+                            rightNum.className = 'line-num';
+                            rightNum.textContent = idx + 1;
+
+                            const rightText = document.createElement('span');
+                            rightText.className = 'code-line-text';
+                            rightText.textContent = line;
+
+                            rightCell.appendChild(rightNum);
+                            rightCell.appendChild(rightText);
+
+                            diffGrid.appendChild(leftCell);
+                            diffGrid.appendChild(rightCell);
+                        });
+                        changedCount = newLines.length;
+                    } else if (!isOldPlaceholder && isNewPlaceholder) {
+                        const oldLines = oldText.split('\n');
+                        oldLines.forEach((line, idx) => {
+                            const leftCell = document.createElement('div');
+                            leftCell.className = 'diff-row-cell left removed';
+
+                            const leftNum = document.createElement('span');
+                            leftNum.className = 'line-num';
+                            leftNum.textContent = idx + 1;
+
+                            const leftText = document.createElement('span');
+                            leftText.className = 'code-line-text';
+                            leftText.textContent = line;
+
+                            leftCell.appendChild(leftNum);
+                            leftCell.appendChild(leftText);
+
+                            const rightCell = document.createElement('div');
+                            rightCell.className = 'diff-row-cell right empty placeholder-cell';
+                            if (idx === 0) rightCell.textContent = newText;
+
+                            diffGrid.appendChild(leftCell);
+                            diffGrid.appendChild(rightCell);
+                        });
+                        changedCount = oldLines.length;
+                    } else if (isOldPlaceholder && isNewPlaceholder) {
+                        const leftCell = document.createElement('div');
+                        leftCell.className = 'diff-row-cell left empty placeholder-cell';
+                        leftCell.textContent = oldText;
+
+                        const rightCell = document.createElement('div');
+                        rightCell.className = 'diff-row-cell right empty placeholder-cell';
+                        rightCell.textContent = newText;
+
+                        diffGrid.appendChild(leftCell);
+                        diffGrid.appendChild(rightCell);
+                        changedCount = 0;
+                    } else {
+                        const diff = diffLines(oldText, newText);
+                        let oldLineNum = 1;
+                        let newLineNum = 1;
+
+                        diff.forEach(item => {
+                            const leftCell = document.createElement('div');
+                            leftCell.className = 'diff-row-cell left';
+
+                            const rightCell = document.createElement('div');
+                            rightCell.className = 'diff-row-cell right';
+
+                            const leftNum = document.createElement('span');
+                            leftNum.className = 'line-num';
+
+                            const leftText = document.createElement('span');
+                            leftText.className = 'code-line-text';
+
+                            const rightNum = document.createElement('span');
+                            rightNum.className = 'line-num';
+
+                            const rightText = document.createElement('span');
+                            rightText.className = 'code-line-text';
+
+                            if (item.type === 'equal') {
+                                leftCell.classList.add('equal');
+                                leftNum.textContent = oldLineNum++;
+                                leftText.textContent = item.old;
+
+                                rightCell.classList.add('equal');
+                                rightNum.textContent = newLineNum++;
+                                rightText.textContent = item.new;
+                            } else if (item.type === 'removed') {
+                                leftCell.classList.add('removed');
+                                leftNum.textContent = oldLineNum++;
+                                leftText.textContent = item.old;
+
+                                rightCell.classList.add('empty');
+                                changedCount++;
+                            } else if (item.type === 'added') {
+                                leftCell.classList.add('empty');
+
+                                rightCell.classList.add('added');
+                                rightNum.textContent = newLineNum++;
+                                rightText.textContent = item.new;
+                                changedCount++;
+                            }
+
+                            if (item.type !== 'added') {
+                                leftCell.appendChild(leftNum);
+                                leftCell.appendChild(leftText);
+                            }
+                            if (item.type !== 'removed') {
+                                rightCell.appendChild(rightNum);
+                                rightCell.appendChild(rightText);
+                            }
+
+                            diffGrid.appendChild(leftCell);
+                            diffGrid.appendChild(rightCell);
+                        });
+                    }
+
+                    codeGrid.innerHTML = '';
+                    codeGrid.appendChild(diffGrid);
+
+                    lastChangedCount = changedCount;
+                    if (summaryCountEl) {
+                        summaryCountEl.textContent = String(changedCount);
+                    }
+                };
+
+                toggleBtn.addEventListener('click', () => {
+                    if (!diffBuilt) buildDiff();
+                    const isOpen = collapsible.classList.toggle('open');
+                    toggleBtn.textContent = isOpen ? 'Hide diff' : 'Show diff';
+                });
+
+                onlyChangesBox.addEventListener('change', () => {
+                    if (!diffBuilt) buildDiff();
+                    const onlyChanges = onlyChangesBox.checked;
+                    const rows = collapsible.querySelectorAll('.diff-row-cell');
+                    rows.forEach(cell => {
+                        if (cell.classList.contains('equal')) {
+                            cell.style.display = onlyChanges ? 'none' : '';
+                        }
+                    });
+                    if (onlyChanges) {
+                        const cells = Array.from(collapsible.querySelectorAll('.diff-row-cell'));
+                        for (let i = 0; i < cells.length; i += 2) {
+                            const left = cells[i];
+                            const right = cells[i + 1];
+                            if (!left || !right) break;
+                            const leftEqual = left.classList.contains('equal');
+                            const rightEqual = right.classList.contains('equal');
+                            if (leftEqual || rightEqual) {
+                                left.style.display = 'none';
+                                right.style.display = 'none';
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+{{ end }}

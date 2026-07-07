@@ -1,0 +1,146 @@
+{{ define "findings" }}
+        <!-- Build-Break Findings Block -->
+        <div class="block">
+            <h2 class="block-title">Build-Break Findings</h2>
+            {{ if .Findings.FileGroups }}
+                <!-- File tree with severity badges — recursive <details> -->
+                <details class="collapsible-section" open style="margin-bottom: 1.5rem;">
+                    <summary class="section-summary">Affected File Tree ({{ len .Findings.FileGroups }})</summary>
+                    <div class="section-content">
+                        <div class="file-tree">
+                        {{ $tree := buildFileTree .Findings.FileGroups }}
+                        {{ template "fileTreeDir" $tree }}
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Findings grouped by file -->
+                {{ range .Findings.FileGroups }}
+                <details class="file-group" open>
+                    <summary class="file-group-summary">
+                        <span class="file-group-path" data-symbol-name="{{ .File }}">{{ .File }}</span>
+                        <span class="badge badge-warning">{{ .Severity }}</span>
+                        <span class="file-group-count">{{ len .Findings }} finding(s)</span>
+                    </summary>
+                    {{ range .Findings }}
+                    <details class="finding-item finding--breaking finding--override finding--internal">
+                        <summary class="finding-summary">
+                            <div class="finding-header-grid">
+                                <div class="finding-header-item">
+                                    <span class="label">Function:</span>
+                                    <span class="val"><code data-symbol-name="{{ .SymbolName }}">{{ .SymbolName }}</code></span>
+                                </div>
+                                <div class="finding-header-item">
+                                    <span class="label">File:Line:</span>
+                                    <span class="val"><code>{{ .File }}{{ range $i, $m := .Mismatches }}{{ if eq $i 0 }}:{{ $m.Line }}{{ end }}{{ end }}</code></span>
+                                </div>
+                                <div class="finding-header-item">
+                                    <span class="label">Problem:</span>
+                                    <span class="val">{{ .ChangeDescription }}</span>
+                                </div>
+                                <div class="finding-header-item">
+                                    <span class="label">Severity:</span>
+                                    <span class="badge badge-warning">{{ .DisplaySeverity }}</span>
+                                </div>
+                            </div>
+                        </summary>
+                        <div class="finding-details">
+                            <div class="text-muted" style="margin-bottom: 1rem;">
+                                <strong>Description:</strong> {{ .ChangeDescription }}
+                            </div>
+
+                            <div class="mismatch-list">
+                                {{ range .Mismatches }}
+                                <div class="mismatch-item">
+                                    <span class="mismatch-type">[{{ .Type }}]</span> {{ .Detail }} <span class="mismatch-loc">({{ .File }}:{{ .Line }})</span>
+                                </div>
+                                {{ end }}
+                            </div>
+
+                            {{ if .AffectedCallers }}
+                            <div class="affected-callers" data-symbol-name="affected-callers-{{ .SymbolName }}">
+                                <div class="affected-callers-title">Affected Callers ({{ len .AffectedCallers }})</div>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Caller</th>
+                                            <th>File</th>
+                                            <th>Depth</th>
+                                            <th>Dependency Type</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {{ range .AffectedCallers }}
+                                        <tr>
+                                            <td><strong data-symbol-name="{{ .Name }}">{{ .Name }}</strong></td>
+                                            <td>{{ .File }}</td>
+                                            <td>{{ .Depth }}</td>
+                                            <td><span class="badge badge-low">{{ .DependencyType }}</span></td>
+                                        </tr>
+                                        {{ end }}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {{ end }}
+
+                            <div class="diff-section">
+                                <span class="diff-summary">
+                                    <span class="diff-count">{{ .DisplayLinesChanged }}</span>
+                                    <span class="diff-summary-text">lines changed</span>
+                                </span>
+                                <div class="diff-toggle-row">
+                                    <button type="button" class="diff-toggle-btn">Show diff</button>
+                                    <label class="diff-only-changes">
+                                        <input type="checkbox" class="only-changes-checkbox">
+                                        Show only changes
+                                    </label>
+                                </div>
+                                <div class="diff-collapsible">
+                                    <div class="code-grid">
+                                        <div class="code-column">
+                                            <div class="code-header">Before</div>
+                                            <pre class="code-body"><code class="raw-old">{{ .DisplayOldContent }}</code></pre>
+                                        </div>
+                                        <div class="code-column">
+                                            <div class="code-header">After</div>
+                                            <pre class="code-body"><code class="raw-new">{{ .DisplayNewContent }}</code></pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                    {{ end }}
+                </details>
+                {{ end }}
+
+                <!-- Grouped by Concern — placeholder for phase 2 -->
+                <details class="collapsible-section">
+                    <summary class="section-summary">Grouped by Concern — coming in next update</summary>
+                    <div class="section-content">
+                        <div class="placeholder-coming-soon">
+                            Findings grouped by concern category (breaking, override, internal) will appear here in a future update.
+                        </div>
+                    </div>
+                </details>
+            {{ else }}
+            <p class="text-muted">No signature mismatches detected.</p>
+            {{ end }}
+        </div>
+{{ end }}
+
+    <!-- File tree recursive template -->
+    {{ define "fileTreeDir" }}
+        {{ range .Children }}
+        <details class="file-tree-node">
+            <summary><span class="dir-name">{{ .Name }}</span></summary>
+            {{ template "fileTreeDir" . }}
+        </details>
+        {{ end }}
+        {{ range .Files }}
+        <div class="file-tree-leaf">
+            <span class="file-name" data-symbol-name="{{ .FullPath }}">{{ .Name }}</span>
+            {{ if .Severity }}<span class="badge badge-warning">{{ .Severity }}</span>{{ end }}
+        </div>
+        {{ end }}
+    {{ end }}

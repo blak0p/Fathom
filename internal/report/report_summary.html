@@ -1,0 +1,36 @@
+{{ define "summary" }}
+        <!-- Executive Summary -->
+        <h2 class="block-title" style="border-bottom: 2px solid var(--accent-color); margin-bottom: 1.25rem;">Executive Summary</h2>
+        <div class="summary-grid" data-symbol-name="summary">
+            <div class="summary-card findings">
+                <span class="card-label">Total Findings</span>
+                <span class="card-count">{{ .Summary.TotalFindings }}</span>
+            </div>
+            <div class="summary-card warnings">
+                <span class="card-label">Warnings</span>
+                <span class="card-count">{{ .Summary.WarningCount }}</span>
+            </div>
+            <div class="summary-card files">
+                <span class="card-label">Affected Files</span>
+                <span class="card-count">{{ .Summary.AffectedFiles }}</span>
+            </div>
+            <div class="summary-card deadcode">
+                <span class="card-label">Dead Code</span>
+                <span class="card-count">{{ .Summary.DeadCodeCount }}</span>
+            </div>
+        </div>
+
+        <!-- Implicit risk score — no CLEAN/REVIEW banner. Tone from counts. -->
+        {{ $hasFindings := gt .Summary.TotalFindings 0 }}
+        {{ $hasBlast := gt (len .BlastRadius.DirectlyAffected) 0 }}
+        {{ $riskHigh := or $hasFindings $hasBlast }}
+        {{ $riskTone := "low" }}
+        {{ if $riskHigh }}{{ $riskTone = "high" }}{{ else if gt .Summary.DeadCodeCount 0 }}{{ $riskTone = "medium" }}{{ end }}
+        <div class="risk-score" data-tone="{{ $riskTone }}" data-symbol-name="risk-score">
+            <span class="risk-dot"></span>
+            <span class="risk-label">Risk: {{ if $riskHigh }}elevated{{ else if gt .Summary.DeadCodeCount 0 }}moderate{{ else }}low{{ end }}</span>
+            <span class="risk-detail">
+                {{ .Summary.TotalFindings }} finding(s) · {{ .Summary.AffectedFiles }} affected file(s) · {{ .Summary.DeadCodeCount }} dead symbol(s)
+            </span>
+        </div>
+{{ end }}

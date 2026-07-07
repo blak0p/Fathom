@@ -1,0 +1,29 @@
+{{ define "blast" }}
+        <!-- Blast Radius Block — graph container ready for PR 2 (d3.js) -->
+        <div class="block">
+            <h2 class="block-title">Blast Radius</h2>
+            <div id="blast-graph" data-symbol-name="blast-radius">
+                {{ if and (eq (len .BlastRadius.DirectlyAffected) 0) (eq (len .BlastRadius.TransitivelyAffected) 0) }}
+                    No affected callers.
+                {{ else }}
+                    Interactive blast radius graph will render here ({{ len .BlastRadius.DirectlyAffected }} direct, {{ len .BlastRadius.TransitivelyAffected }} transitive).
+                {{ end }}
+            </div>
+
+            <!-- Affected files list preserved (graph replaces tables in PR 2) -->
+            <details class="collapsible-section" open style="margin-top: 2rem;">
+                <summary class="section-summary">Affected Files ({{ len .BlastRadius.AffectedFiles }})</summary>
+                <div class="section-content">
+                    {{ if .BlastRadius.AffectedFiles }}
+                    <ul class="affected-files-list">
+                        {{ range .BlastRadius.AffectedFiles }}
+                        <li>{{ . }}</li>
+                        {{ end }}
+                    </ul>
+                    {{ else }}
+                    <p class="text-muted">No files affected.</p>
+                    {{ end }}
+                </div>
+            </details>
+        </div>
+{{ end }}

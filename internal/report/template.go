@@ -1,15 +1,15 @@
 package report
 
 import (
-	_ "embed"
+	"embed"
 	"html/template"
 	"io"
 	"sort"
 	"strings"
 )
 
-//go:embed report.html
-var rawTemplate string
+//go:embed report.html report_*.html
+var embedFS embed.FS
 
 // FileTreeNode is a display-only structure built from FileGroups so the
 // template can render a nested <details> directory tree without reconstructing
@@ -17,10 +17,10 @@ var rawTemplate string
 // Children non-empty) or file leaves (Name = file name, Severity set).
 type FileTreeNode struct {
 	Name     string
-	FullPath string            // original full path, only set on file leaves
-	Severity string            // only set on file leaves
-	Children []FileTreeNode    // only set on directories
-	Files    []FileTreeNode    // file leaves, sorted by Name
+	FullPath string         // original full path, only set on file leaves
+	Severity string         // only set on file leaves
+	Children []FileTreeNode // only set on directories
+	Files    []FileTreeNode // file leaves, sorted by Name
 	IsDir    bool
 }
 
@@ -144,9 +144,9 @@ func (f Finding) DisplayLinesChanged() string {
 
 func Render(w io.Writer, payload ReportPayload) error {
 	t, err := template.New("report").Funcs(template.FuncMap{
-		"splitPath":    splitPath,
+		"splitPath":     splitPath,
 		"buildFileTree": buildFileTree,
-	}).Parse(rawTemplate)
+	}).ParseFS(embedFS, "report.html", "report_*.html")
 	if err != nil {
 		return err
 	}
