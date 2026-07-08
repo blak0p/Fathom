@@ -58,43 +58,40 @@ jobs:
           name: binary-linux-amd64
           path: fathom-linux-amd64
 
-  build-windows-amd64:
-    name: Build Windows amd64
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-          cache: true
-
-      - uses: egor-tensin/setup-mingw@v3
-        with:
-          platform: x64
-          static: 0
-
-      # FFI vendored as DLL + MinGW import library (.a) — no Rust compilation needed.
-      # DLL is copied next to .exe and both uploaded so the binary works on Windows.
-
-      - name: Build Binary
-        run: |
-          go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-windows-amd64.exe .
-          cp ffi/.lib/windows-amd64/ts_pack_core_ffi.dll ts_pack_core_ffi.dll
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: binary-windows-amd64
-          path: |
-            fathom-windows-amd64.exe
-            ts_pack_core_ffi.dll
+  # Windows build is disabled due to CGO symbol conflicts between
+  # go-tree-sitter and the vendored FFI import library (.lib).
+  # The FFI .lib contains tree-sitter object code that conflicts with
+  # go-tree-sitter's own C sources. Fix: use LoadLibrary/GetProcAddress
+  # at runtime for the FFI DLL, or wait for an upstream fix.
+  # build-windows-amd64:
+  #   name: Build Windows amd64
+  #   runs-on: windows-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version: '1.26'
+  #         cache: true
+  #     - uses: egor-tensin/setup-mingw@v3
+  #       with:
+  #         platform: x64
+  #         static: 0
+  #     - name: Build Binary
+  #       run: |
+  #         go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-windows-amd64.exe .
+  #         cp ffi/.lib/windows-amd64/ts_pack_core_ffi.dll ts_pack_core_ffi.dll
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: binary-windows-amd64
+  #         path: |
+  #           fathom-windows-amd64.exe
+  #           ts_pack_core_ffi.dll
 
   release:
     name: Release
     needs:
       - build-linux
       - build-macos
-      - build-windows-amd64
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
