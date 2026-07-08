@@ -28,12 +28,12 @@ jobs:
         run: |
           CGO_ENABLED=1 GOARCH=arm64 go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-darwin-arm64 .
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-darwin-amd64
           path: fathom-darwin-amd64
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-darwin-arm64
           path: fathom-darwin-arm64
@@ -53,7 +53,7 @@ jobs:
         run: |
           CGO_ENABLED=1 go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-linux-amd64 .
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-linux-amd64
           path: fathom-linux-amd64
@@ -90,7 +90,7 @@ jobs:
           go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-windows-amd64.exe .
           cp ffi/.lib/windows-amd64/ts_pack_core_ffi.dll ts_pack_core_ffi.dll
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-windows-amd64
           path: |
