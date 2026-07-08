@@ -7,6 +7,14 @@ package main
 
 import "github.com/blak0p/Fathom/cmd"
 
+// Version is the build-time version of Fathom.
+// Overridden by goreleaser / ldflags:
+//
+//	-X github.com/blak0p/Fathom.Version={{.Version}}
+//
+// Defaults to "dev" for local builds.
+var Version = "dev"
+
 func main() {
-	cmd.Execute()
+	cmd.Execute(Version)
 }

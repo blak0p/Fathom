@@ -14,6 +14,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// version is injected at build time via ldflags. Defaults to "dev".
+var version = "dev"
+
 // rootCmd is the Fathom CLI entry point. Subcommands attach themselves to it.
 var rootCmd = &cobra.Command{
 	Use:   "fathom",
@@ -25,10 +28,15 @@ codebase, not just the files in the diff.
 Run "fathom init" inside a repository to create the .fathom/ index, then use
 the analysis commands to ask what a given change actually touches.`,
 	SilenceUsage: true,
+	Version:       version,
 }
 
 // Execute runs the root command. It is the single entry point used by main.go.
-func Execute() {
+// The version string is injected from main so that ldflags can override it at
+// build time.
+func Execute(v string) {
+	version = v
+	rootCmd.Version = v
 	if err := rootCmd.Execute(); err != nil {
 		// cobra already prints the error; exit non-zero without duplicating it.
 		os.Exit(1)
