@@ -78,9 +78,12 @@ jobs:
       # object code that conflicts with go-tree-sitter's own C sources.
       # We generate a thin import library from the DLL instead, so the
       # linker only sees stubs that redirect to the DLL at runtime.
+      # gendef extracts exports from the MSVC-compiled DLL, then dlltool
+      # creates a MinGW-compatible import library from the .def file.
       - name: Generate import library from DLL
         run: |
-          dlltool -d ffi/.lib/windows-amd64/ts_pack_core_ffi.dll -l ffi/.lib/windows-amd64/libts_pack_core_ffi.a -k
+          gendef - ffi/.lib/windows-amd64/ts_pack_core_ffi.dll > ffi/.lib/windows-amd64/ts_pack_core_ffi.def
+          dlltool -d ffi/.lib/windows-amd64/ts_pack_core_ffi.def -l ffi/.lib/windows-amd64/libts_pack_core_ffi.a -k
 
       - name: Build Binary
         run: |
