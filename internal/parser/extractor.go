@@ -6,7 +6,7 @@ import (
 
 	tspack "github.com/xberg-io/tree-sitter-language-pack/packages/go"
 
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 // ExtractSymbols parses source via the language pack's high-level Process()

@@ -8,8 +8,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Fathom/internal/refs"
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/refs"
+	"github.com/blak0p/Fathom/internal/symbol"
 	"go.etcd.io/bbolt"
 )
 

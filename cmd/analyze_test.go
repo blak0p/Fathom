@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Fathom/cmd/interactive"
+	"github.com/blak0p/Fathom/cmd/interactive"
 )
 
 func TestAnalyzeValidation(t *testing.T) {

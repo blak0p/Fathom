@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Fathom/internal/db"
-	"github.com/Fathom/internal/refs"
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/db"
+	"github.com/blak0p/Fathom/internal/refs"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 // testStore opens a fresh bolt store in t.TempDir() and returns it. It

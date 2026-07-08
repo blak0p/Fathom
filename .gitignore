@@ -1,12 +1,6 @@
 # Fathom local state (bbolt databases, caches, indexes).
 .fathom/
 
-# Local checkout of the tree-sitter-language-pack Go binding used by the
-# go.mod replace directive to fix the upstream .lib/ directory naming
-# (.lib/linux-amd64 vs the linux-x86_64 the cgo LDFLAGS expect). Kept out
-# of git because it ships large FFI binaries; each developer sets it up
-# locally by copying the module cache and symlinking .lib directories.
-.extmods/
 # Local Pi runtime state
 .atl/
 

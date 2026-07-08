@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Fathom/internal/db"
-	"github.com/Fathom/internal/deadcode"
-	"github.com/Fathom/internal/impact"
-	"github.com/Fathom/internal/mismatch"
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/db"
+	"github.com/blak0p/Fathom/internal/deadcode"
+	"github.com/blak0p/Fathom/internal/impact"
+	"github.com/blak0p/Fathom/internal/mismatch"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 func testStore(t *testing.T) db.Store {

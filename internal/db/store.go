@@ -10,8 +10,8 @@ import (
 	"go.etcd.io/bbolt"
 	"go.uber.org/zap"
 
-	"github.com/Fathom/internal/refs"
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/refs"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 // keySeparator separates the file path from the symbol name in the Symbols

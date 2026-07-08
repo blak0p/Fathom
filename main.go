@@ -5,7 +5,7 @@
 // whole codebase, not just the files in the diff.
 package main
 
-import "github.com/Fathom/cmd"
+import "github.com/blak0p/Fathom/cmd"
 
 func main() {
 	cmd.Execute()

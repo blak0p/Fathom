@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Fathom/internal/db"
+	"github.com/blak0p/Fathom/internal/db"
 )
 
 // AffectedSymbol represents a symbol impacted by a change.

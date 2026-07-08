@@ -16,8 +16,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
-	"github.com/Fathom/internal/db"
-	"github.com/Fathom/internal/parser"
+	"github.com/blak0p/Fathom/internal/db"
+	"github.com/blak0p/Fathom/internal/parser"
 )
 
 // maxFileBytes caps the size of a single source file Fathom will parse. Files
