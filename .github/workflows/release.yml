@@ -58,40 +58,48 @@ jobs:
           name: binary-linux-amd64
           path: fathom-linux-amd64
 
-  # Windows build is disabled due to CGO symbol conflicts between
-  # go-tree-sitter and the vendored FFI import library (.lib).
-  # The FFI .lib contains tree-sitter object code that conflicts with
-  # go-tree-sitter's own C sources. Fix: use LoadLibrary/GetProcAddress
-  # at runtime for the FFI DLL, or wait for an upstream fix.
-  # build-windows-amd64:
-  #   name: Build Windows amd64
-  #   runs-on: windows-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-go@v5
-  #       with:
-  #         go-version: '1.26'
-  #         cache: true
-  #     - uses: egor-tensin/setup-mingw@v3
-  #       with:
-  #         platform: x64
-  #         static: 0
-  #     - name: Build Binary
-  #       run: |
-  #         go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-windows-amd64.exe .
-  #         cp ffi/.lib/windows-amd64/ts_pack_core_ffi.dll ts_pack_core_ffi.dll
-  #     - uses: actions/upload-artifact@v4
-  #       with:
-  #         name: binary-windows-amd64
-  #         path: |
-  #           fathom-windows-amd64.exe
-  #           ts_pack_core_ffi.dll
+  build-windows-amd64:
+    name: Build Windows amd64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: egor-tensin/setup-mingw@v3
+        with:
+          platform: x64
+          static: 0
+
+      # The vendored .lib is a 49MB static library containing tree-sitter
+      # object code that conflicts with go-tree-sitter's own C sources.
+      # We generate a thin import library from the DLL instead, so the
+      # linker only sees stubs that redirect to the DLL at runtime.
+      - name: Generate import library from DLL
+        run: |
+          dlltool -d ffi/.lib/windows-amd64/ts_pack_core_ffi.dll -l ffi/.lib/windows-amd64/libts_pack_core_ffi.a -k
+
+      - name: Build Binary
+        run: |
+          go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-windows-amd64.exe .
+          cp ffi/.lib/windows-amd64/ts_pack_core_ffi.dll ts_pack_core_ffi.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-windows-amd64
+          path: |
+            fathom-windows-amd64.exe
+            ts_pack_core_ffi.dll
 
   release:
     name: Release
     needs:
       - build-linux
       - build-macos
+      - build-windows-amd64
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
