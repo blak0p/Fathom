@@ -1,0 +1,139 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS (amd64 + arm64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Build amd64
+        run: |
+          CGO_ENABLED=1 go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-darwin-amd64 .
+
+      - name: Build arm64
+        run: |
+          CGO_ENABLED=1 GOARCH=arm64 go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-darwin-arm64 .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-darwin-amd64
+          path: fathom-darwin-amd64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-darwin-arm64
+          path: fathom-darwin-arm64
+
+  build-linux:
+    name: Build Linux amd64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Build Binary
+        run: |
+          CGO_ENABLED=1 go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-linux-amd64 .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-linux-amd64
+          path: fathom-linux-amd64
+
+  build-windows-amd64:
+    name: Build Windows amd64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: egor-tensin/setup-mingw@v3
+        with:
+          platform: x64
+          static: 0
+
+      # FFI vendored as DLL + MinGW import library (.a) — no Rust compilation needed.
+      # DLL is copied next to .exe and both uploaded so the binary works on Windows.
+
+      - name: Build Binary
+        run: |
+          go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o fathom-windows-amd64.exe .
+          cp ffi/.lib/windows-amd64/ts_pack_core_ffi.dll ts_pack_core_ffi.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-windows-amd64
+          path: |
+            fathom-windows-amd64.exe
+            ts_pack_core_ffi.dll
+
+  release:
+    name: Release
+    needs:
+      - build-linux
+      - build-macos
+      - build-windows-amd64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # actions/checkout does not fetch annotated tag metadata on tag
+      # push triggers (bug #290). This explicit fetch ensures
+      # goreleaser can use .TagSubject / .TagBody from annotated tags.
+      - name: Fetch annotated tag metadata
+        run: git fetch --force --tags
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      # Goreleaser builds the Linux binary natively (CGO works on
+      # ubuntu-latest). macOS and Windows binaries are built in
+      # separate jobs above and uploaded after the release is created.
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Download macOS & Windows binaries
+        uses: actions/download-artifact@v8
+        with:
+          path: native-binaries
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: Upload native macOS & Windows binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.ref_name }}" native-binaries/* --clobber

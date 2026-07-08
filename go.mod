@@ -1,4 +1,4 @@
-module github.com/Fathom
+module github.com/blak0p/Fathom
 
 go 1.26.4
 
@@ -47,4 +47,4 @@ require (
 // names (linux-x86_64). We vendor a writable copy with symlinks so the
 // linker can find libts_pack_core_ffi. Remove this replace once the
 // upstream package ships matching directory names.
-replace github.com/xberg-io/tree-sitter-language-pack/packages/go v1.12.2 => ./.extmods/tspack
+replace github.com/xberg-io/tree-sitter-language-pack/packages/go v1.12.2 => ./ffi

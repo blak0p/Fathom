@@ -7,7 +7,7 @@ import (
 
 	tspack "github.com/xberg-io/tree-sitter-language-pack/packages/go"
 
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 // dedupKey identifies a symbol already emitted so the Structure, Symbols,

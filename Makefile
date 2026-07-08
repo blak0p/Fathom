@@ -10,6 +10,8 @@
 #   fmt         Format all Go source files
 #   init        Run fathom init on the current repo
 #   run         Build and run fathom with args (e.g., make run ARGS="init")
+#   release     Publish a release via goreleaser (requires a git tag + secrets)
+#   release-dry-run  Build a local release snapshot without publishing
 #   help        Show this help
 
 GO       := go
@@ -30,7 +32,7 @@ ifeq ($(UNAME_S),Windows)
 	BINARY_EXT := .exe
 endif
 
-.PHONY: all build test test-full test-v clean lint fmt init run help
+.PHONY: all build test test-full test-v clean lint fmt init run release release-dry-run help
 
 all: build
 
@@ -71,6 +73,13 @@ init: build
 run: build
 	./$(BINARY)$(BINARY_EXT) $(ARGS)
 
+# Release targets
+release:
+	@goreleaser release --clean
+
+release-dry-run:
+	@goreleaser release --snapshot --clean
+
 # Show help
 help:
 	@echo "Fathom — Makefile"
@@ -85,6 +94,8 @@ help:
 	@echo "  fmt         Format all Go source files"
 	@echo "  init        Run fathom init on the current repo"
 	@echo "  run         Build and run with ARGS (e.g., make run ARGS='init')"
+	@echo "  release     Publish a release via goreleaser (requires a git tag + secrets)"
+	@echo "  release-dry-run  Build a local release snapshot without publishing"
 	@echo ""
 	@echo "Variables:"
 	@echo "  GO          Go compiler (default: go)"

@@ -10,8 +10,8 @@ import (
 	tspack "github.com/xberg-io/tree-sitter-language-pack/packages/go"
 	"go.uber.org/zap"
 
-	"github.com/Fathom/internal/refs"
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/refs"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 // Parser is the abstraction Fathom uses to turn files on disk into symbols.

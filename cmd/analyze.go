@@ -13,16 +13,16 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
-	"github.com/Fathom/cmd/interactive"
-	"github.com/Fathom/internal/db"
-	"github.com/Fathom/internal/deadcode"
-	"github.com/Fathom/internal/diff"
-	"github.com/Fathom/internal/git"
-	"github.com/Fathom/internal/impact"
-	"github.com/Fathom/internal/mismatch"
-	"github.com/Fathom/internal/parser"
-	"github.com/Fathom/internal/report"
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/cmd/interactive"
+	"github.com/blak0p/Fathom/internal/db"
+	"github.com/blak0p/Fathom/internal/deadcode"
+	"github.com/blak0p/Fathom/internal/diff"
+	"github.com/blak0p/Fathom/internal/git"
+	"github.com/blak0p/Fathom/internal/impact"
+	"github.com/blak0p/Fathom/internal/mismatch"
+	"github.com/blak0p/Fathom/internal/parser"
+	"github.com/blak0p/Fathom/internal/report"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 var (

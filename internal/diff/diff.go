@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Fathom/internal/git"
-	"github.com/Fathom/internal/parser"
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/git"
+	"github.com/blak0p/Fathom/internal/parser"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 // isSkipError reports whether err is a parser error that should be silently

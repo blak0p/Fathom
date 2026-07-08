@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Fathom/internal/db"
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/db"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 type Confidence string

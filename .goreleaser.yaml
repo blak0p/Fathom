@@ -1,0 +1,70 @@
+version: 2
+
+project_name: fathom
+
+before:
+  hooks:
+    - go mod tidy
+
+# Solo linux/amd64 se buildea acá porque CGO no cross-compila.
+# darwin/amd64, darwin/arm64, windows/amd64 se buildan en runners nativos
+# y se suben aparte vía gh release upload (ver .github/workflows/release.yml).
+builds:
+  - main: .
+    binary: fathom
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w
+      - -X main.Version={{.Version}}
+    flags:
+      - -trimpath
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  prerelease: auto
+  mode: keep-existing
+  header: |
+    ## {{ .TagSubject }}
+
+    {{ .TagBody }}
+  footer: |
+    ---
+
+    **Full Changelog**: https://github.com/blak0p/Fathom/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+brews:
+  - repository:
+      owner: blak0p
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    name: fathom
+    homepage: "https://github.com/blak0p/Fathom"
+    description: "Repository impact analysis for Pull Requests. Know what a PR actually touches."
+    license: "MIT"
+    commit_msg_template: "chore: update fathom formula to {{ .Tag }}"
+    test: |
+      system "#{bin}/fathom --version"

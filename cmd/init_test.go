@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Fathom/internal/db"
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/db"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 // writeFixture writes a file at relPath under dir with the given content,

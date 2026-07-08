@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Fathom/internal/symbol"
+	"github.com/blak0p/Fathom/internal/symbol"
 )
 
 // TestDetectLanguage covers the DetectLanguage wrapper for known and unknown
