@@ -8,7 +8,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/mattn/go-isatty v0.0.22
 	github.com/spf13/cobra v1.10.2
-	github.com/tree-sitter/go-tree-sitter v0.24.0
+	github.com/tree-sitter/go-tree-sitter v0.25.0
 	github.com/xberg-io/tree-sitter-language-pack/packages/go v1.12.2
 	go.etcd.io/bbolt v1.5.0
 	go.uber.org/zap v1.28.0
