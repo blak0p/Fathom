@@ -9,3 +9,6 @@
 
 # CodeGraph directory
 .codegraph/
+
+# Goreleaser build output
+/dist/
