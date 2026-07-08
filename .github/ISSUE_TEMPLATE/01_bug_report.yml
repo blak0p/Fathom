@@ -1,0 +1,100 @@
+name: Bug Report
+description: Report a bug to help us improve Fathom
+title: "package: "
+labels: [bug, "status:pending-approval"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Run `fathom --version`
+      placeholder: "fathom version v0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: "macOS 15.4 / Ubuntu 24.04 / Windows 11"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - "Blocks usage entirely (crash, data loss, corrupted index)"
+        - "Major - workaround exists but painful"
+        - "Minor - cosmetic or edge case"
+    validations:
+      required: true
+
+  - type: input
+    id: repo-type
+    attributes:
+      label: Repository type
+      description: What kind of repo were you analyzing? (language, size)
+      placeholder: "Go monorepo, ~500 files"
+    validations:
+      required: false
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the issue and what you expected to happen.
+      placeholder: "Tell us what went wrong"
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact — why does this matter to you?
+      description: What were you trying to do and how does this block your workflow?
+      placeholder: "I was trying to analyze a PR and..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run 'fathom init'
+        2. Run 'fathom analyze --base main'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste any error messages or logs.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Search
+      options:
+        - label: |
+            I searched for existing open and closed issues before opening this
+          required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+    validations:
+      required: false

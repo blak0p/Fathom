@@ -1,0 +1,64 @@
+name: Security Setup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create or update CODEOWNERS
+        run: |
+          cat > .github/CODEOWNERS << 'EOF'
+          # Default owner
+          * @blak0p
+
+          # Core parser and symbol extraction
+          /internal/parser/ @blak0p
+
+          # Impact analysis engine
+          /internal/impact/ @blak0p
+
+          # Report generation
+          /internal/report/ @blak0p
+
+          # Reference extraction
+          /internal/refs/ @blak0p
+          EOF
+
+      - name: Commit CODEOWNERS
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/CODEOWNERS
+          git diff --staged --quiet || git commit -m "docs: add CODEOWNERS file"
+          git push
+
+      - name: Configure branch protection
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method PUT /repos/blak0p/Fathom/branches/main/protection \
+            -H "Accept: application/vnd.github+json" \
+            -f required_status_checks='{"strict":true,"contexts":["test","build","check"]}' \
+            -f enforce_admins=true \
+            -f required_pull_request_reviews='{"required_approving_review_count":1,"dismiss_stale_reviews":true,"require_code_owner_reviews":true}' \
+            -f restrictions=null \
+            -f allow_force_pushes=false \
+            -f allow_deletions=false \
+            -f required_conversation_resolution=true
+
+      - name: Configure repository
+        run: |
+          gh repo edit blak0p/Fathom \
+            --delete-branch-on-merge \
+            --enable-squash-merge \
+            --enable-rebase-merge \
+            --enable-merge-commit

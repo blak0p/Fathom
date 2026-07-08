@@ -1,0 +1,14 @@
+# Default owner
+* @blak0p
+
+# Core parser and symbol extraction
+/internal/parser/ @blak0p
+
+# Impact analysis engine
+/internal/impact/ @blak0p
+
+# Report generation
+/internal/report/ @blak0p
+
+# Reference extraction
+/internal/refs/ @blak0p
