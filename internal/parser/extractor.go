@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 
 	tspack "github.com/xberg-io/tree-sitter-language-pack/packages/go"
@@ -8,249 +9,121 @@ import (
 	"github.com/Fathom/internal/symbol"
 )
 
-// kindMaps maps a language name to a map of tree-sitter node kinds → Fathom
-// symbol kind. A node kind present in the map is emitted as a symbol; the
-// walker also uses noDescend to decide whether to descend into a matched
-// node's children (to avoid double-emitting nested declarations).
-var kindMaps = map[string]map[string]symbol.SymbolKind{
-	"go": {
-		"function_declaration": symbol.KindFunction,
-		"method_declaration":   symbol.KindFunction,
-		"type_spec":            symbol.KindType,
-		"interface_type":       symbol.KindInterface,
-		"import_declaration":   symbol.KindImport,
-	},
-	"javascript": {
-		"function_declaration": symbol.KindFunction,
-		"class_declaration":    symbol.KindClass,
-		"method_definition":    symbol.KindFunction,
-		"arrow_function":       symbol.KindFunction,
-		"import_statement":     symbol.KindImport,
-		"export_statement":     symbol.KindExport,
-	},
-	"typescript": {
-		"function_declaration":  symbol.KindFunction,
-		"class_declaration":     symbol.KindClass,
-		"interface_declaration": symbol.KindInterface,
-		"method_definition":     symbol.KindFunction,
-		"arrow_function":        symbol.KindFunction,
-		"import_statement":      symbol.KindImport,
-		"export_statement":      symbol.KindExport,
-	},
-	"tsx": {
-		"function_declaration":  symbol.KindFunction,
-		"class_declaration":     symbol.KindClass,
-		"interface_declaration": symbol.KindInterface,
-		"method_definition":     symbol.KindFunction,
-		"arrow_function":        symbol.KindFunction,
-		"import_statement":      symbol.KindImport,
-		"export_statement":      symbol.KindExport,
-	},
-	"python": {
-		"function_definition":   symbol.KindFunction,
-		"class_definition":      symbol.KindClass,
-		"import_statement":      symbol.KindImport,
-		"import_from_statement": symbol.KindImport,
-	},
-	"rust": {
-		"function_item":   symbol.KindFunction,
-		"struct_item":     symbol.KindType,
-		"enum_item":       symbol.KindType,
-		"impl_item":       symbol.KindType,
-		"trait_item":      symbol.KindInterface,
-		"use_declaration": symbol.KindImport,
-	},
-	"java": {
-		"method_declaration":    symbol.KindFunction,
-		"class_declaration":     symbol.KindClass,
-		"interface_declaration": symbol.KindInterface,
-		"import_declaration":    symbol.KindImport,
-	},
-	"c": {
-		"function_definition": symbol.KindFunction,
-		"struct_specifier":    symbol.KindType,
-	},
-	"cpp": {
-		"function_definition": symbol.KindFunction,
-		"struct_specifier":    symbol.KindType,
-		"class_specifier":     symbol.KindClass,
-	},
-	// NOTE: the tree-sitter Ruby grammar uses `class`, `method`, and `module`
-	// (NOT `class_definition`/`method_definition`/`module_definition`). The
-	// naming here reflects the actual grammar so extraction works against
-	// real Ruby sources.
-	"ruby": {
-		"class":  symbol.KindClass,
-		"method": symbol.KindFunction,
-		"module": symbol.KindType,
-	},
-	"php": {
-		"function_definition":   symbol.KindFunction,
-		"method_declaration":    symbol.KindFunction,
-		"class_declaration":     symbol.KindClass,
-		"interface_declaration": symbol.KindInterface,
-	},
-}
-
-// noDescend lists node kinds whose children should NOT be walked once the
-// node itself is emitted. This prevents duplicate symbols when a declaration
-// wrapper contains the real name+body as children that would also match.
+// ExtractSymbols parses source via the language pack's high-level Process()
+// API and returns the Fathom symbols found. It works for any language the pack
+// recognizes (306 grammars), not just a curated subset.
 //
-// Go `type_spec` is the canonical case: a `type_spec` wraps either a
-// `struct_type` or an `interface_type`; emitting both the spec and the nested
-// interface_type would double-count every interface.
-var noDescend = map[string]map[string]struct{}{
-	"go": {"type_spec": {}},
-}
-
-// identifierKinds are node kinds that carry a declaration name as their
-// source text. Used as a fallback when ChildByFieldName("name") is empty.
-var identifierKinds = map[string]struct{}{
-	"identifier":        {},
-	"type_identifier":   {},
-	"field_identifier":  {},
-	"constant":          {}, // Ruby class/module names
-	"name":              {}, // PHP
-	"scoped_identifier": {}, // Rust use, Java import
-	"dotted_name":       {}, // Python import
-}
-
-// stringKinds are node kinds whose source text is a string literal carrying
-// the imported path for import declarations.
-var stringKinds = map[string]struct{}{
-	"interpreted_string_literal": {}, // Go
-	"string":                     {}, // TS/JS/PHP/Ruby
-	"string_literal":             {}, // Java/C++
-	"system_lib_string":          {}, // C/C++ #include
-}
-
-// ExtractSymbols parses source with the tree-sitter parser for lang and
-// returns the symbols found in the concrete syntax tree.
+// Process() returns Structure, Symbols, Imports, and Exports views of the file.
+// processResultToSymbols merges and deduplicates them into a single symbol
+// slice. Function parameter metadata (MinParams/MaxParams/ParamTypes) is not
+// exposed by Process() — StructureItem.Signature is nil across grammars — so a
+// second tree-sitter parse runs enrichFunctionSymbols to populate those fields
+// via the existing extractParams helper.
 //
-// The function does not download parsers; it relies on the language pack's
-// static bundle for the curated languages. If the language is unknown or the
-// parser cannot be loaded, an error is returned. Parse errors (syntax errors
-// in the source) are NOT errors here: a best-effort symbol list is returned
-// alongside any partial tree the parser produced.
+// Parse errors (syntax errors in the source) are NOT errors here: the pack
+// parses best-effort and returns diagnostics alongside whatever partial
+// structure it recovered, so callers still get a usable symbol list.
 func ExtractSymbols(source []byte, lang string) ([]symbol.Symbol, error) {
-	kindMap, ok := kindMaps[lang]
-	if !ok {
-		return nil, errUnsupportedLanguage(lang)
+	config := tspack.ProcessConfig{
+		Language: lang,
+		Symbols:  true,
+	}
+	result, err := tspack.Process(string(source), config)
+	if err != nil {
+		return nil, fmt.Errorf("parser: process %s: %w", lang, err)
+	}
+
+	symbols := processResultToSymbols(result, source, lang)
+
+	// Second parse for function parameter metadata. Skipped when there are no
+	// function symbols (non-fatal on failure: symbols are returned without
+	// params rather than dropping the whole extraction).
+	enrichFunctionSymbols(source, lang, symbols)
+
+	return symbols, nil
+}
+
+// enrichFunctionSymbols walks a second tree-sitter parse to populate
+// MinParams, MaxParams, and ParamTypes on every KindFunction symbol. The pack's
+// Process() does not expose parameter metadata, so we parse the source again
+// and match function/method declaration nodes to symbols by line number.
+//
+// The second parse is skipped when no function symbols exist (RNF1). Failures
+// (unknown language, nil tree) are non-fatal: the symbols are returned with
+// zero-valued signature fields rather than dropping the whole extraction.
+func enrichFunctionSymbols(source []byte, lang string, symbols []symbol.Symbol) {
+	hasFuncs := false
+	for _, s := range symbols {
+		if s.Kind == symbol.KindFunction {
+			hasFuncs = true
+			break
+		}
+	}
+	if !hasFuncs {
+		return
 	}
 
 	p, err := tspack.GetParser(lang)
 	if err != nil {
-		return nil, err
+		return // non-fatal
 	}
 	defer p.Free()
 
 	tree := p.ParseBytes(source)
 	if tree == nil {
-		return nil, errParseFailed(lang)
+		return
 	}
 	defer tree.Free()
 
 	root := tree.RootNode()
 	if root == nil {
-		return nil, nil
+		return
 	}
 
-	return extractSymbolsFromRoot(root, source, lang, kindMap), nil
+	enrichWalk(root, source, lang, symbols)
 }
 
-// extractSymbolsFromRoot walks an already-parsed CST root and returns the
-// symbols found. It is the shared implementation used by both ExtractSymbols
-// (which parses internally) and ParseFileWithRefs (which passes a pre-parsed
-// root to avoid a second parse).
-func extractSymbolsFromRoot(root *tspack.Node, source []byte, lang string, kindMap map[string]symbol.SymbolKind) []symbol.Symbol {
-	var symbols []symbol.Symbol
-	walkNode(root, source, lang, kindMap, &symbols)
-	return symbols
+// functionDeclKinds lists the tree-sitter node kinds that declare a
+// function/method across the grammars Fathom targets. Matching any of these
+// triggers parameter extraction for the symbol on the same line.
+var functionDeclKinds = map[string]struct{}{
+	"function_declaration":  {},
+	"method_declaration":    {},
+	"function_definition":   {},
+	"function_item":         {},
+	"method_definition":     {},
+	"arrow_function":         {},
+	"generator_function_declaration": {},
+	"constructor_declaration":        {},
+	"operator_function_declaration":  {},
 }
 
-// walkNode recursively walks the named children of n, emitting a symbol for
-// any node whose kind matches the language's kind map. When a matched kind is
-// in the language's noDescend set, its children are skipped to avoid
-// duplicate emission.
-func walkNode(n *tspack.Node, source []byte, lang string, kindMap map[string]symbol.SymbolKind, out *[]symbol.Symbol) {
+// enrichWalk recursively visits named children, and for each function/method
+// declaration node it looks up the symbol on the same source line and fills
+// in MinParams/MaxParams/ParamTypes via extractParams.
+func enrichWalk(n *tspack.Node, source []byte, lang string, symbols []symbol.Symbol) {
 	if n == nil {
 		return
 	}
 
 	kind := n.Kind()
-	stop := false
-	if sk, ok := kindMap[kind]; ok {
-		// Go interface detection: a `type_spec` wrapping an `interface_type`
-		// is classified as an Interface rather than a plain Type. The
-		// noDescend rule on type_spec means the nested interface_type would
-		// never be visited, so we resolve the kind here.
-		if lang == "go" && kind == "type_spec" && containsKind(n, "interface_type") {
-			sk = symbol.KindInterface
-		}
-		emitSymbol(n, source, lang, sk, out)
-		if _, stop = noDescend[lang][kind]; stop {
-			return
-		}
-	}
-
-	if stop {
-		return
-	}
-
-	count := n.NamedChildCount()
-	for i := uint(0); i < count; i++ {
-		walkNode(n.NamedChild(uint32(i)), source, lang, kindMap, out)
-	}
-}
-
-// emitSymbol builds a symbol from n and appends it. The File field is left
-// blank; the caller (ParseFile) sets it so the extractor stays free of I/O.
-// lang drives the language-specific parameter and inheritance extraction.
-func emitSymbol(n *tspack.Node, source []byte, lang string, kind symbol.SymbolKind, out *[]symbol.Symbol) {
-	start, end := n.StartByte(), n.EndByte()
-	var content string
-	if end <= uint(len(source)) {
-		content = string(source[start:end])
-	}
-
-	name := extractName(n, source, kind)
-	// Exports wrap an inner declaration; name the export after what it
-	// exports (e.g. `export function hello` → export named "hello"). A bare
-	// `export default x` is named "default".
-	if kind == symbol.KindExport {
-		name = exportName(n, source, name)
-	}
-
-	s := symbol.Symbol{
-		Name:    name,
-		Kind:    kind,
-		Line:    nodeLine(n),
-		Col:     nodeCol(n),
-		Content: content,
-	}
-
-	// Signature metadata: only function/method and class declarations carry
-	// parameter/inheritance info. extractParams and extractParentClass are
-	// no-ops on declarations without the relevant named children, leaving
-	// the zero values in place.
-	if kind == symbol.KindFunction {
-		minP, maxP, types := extractParams(n, source, lang)
-		s.MinParams = minP
-		s.MaxParams = maxP
-		s.ParamTypes = types
-		// Methods carry the enclosing class name. Walk parents to find a
-		// class declaration node and reuse its name. The enclosing class is
-		// available only when the function node's parent chain includes a
-		// class-declaration kind for the current language.
-		if cn := enclosingClassName(n, source, lang); cn != "" {
-			s.ClassName = cn
+	if _, isFunc := functionDeclKinds[kind]; isFunc {
+		line := nodeLine(n)
+		for i := range symbols {
+			s := &symbols[i]
+			if s.Kind == symbol.KindFunction && s.Line == line && s.MinParams == 0 && s.MaxParams == 0 && s.ParamTypes == nil {
+				minP, maxP, types := extractParams(n, source, lang)
+				s.MinParams = minP
+				s.MaxParams = maxP
+				s.ParamTypes = types
+				break
+			}
 		}
 	}
-	if kind == symbol.KindClass {
-		s.ParentClass = extractParentClass(n, source, lang)
-	}
 
-	*out = append(*out, s)
+	for i := uint(0); i < n.NamedChildCount(); i++ {
+		enrichWalk(n.NamedChild(uint32(i)), source, lang, symbols)
+	}
 }
 
 // nodeLine/nodeCol return the 1-based line and column of n's start position.
@@ -376,7 +249,7 @@ func isVariadicParam(kind, lang string) bool {
 	case "ruby":
 		return kind == "rest_parameter" || kind == "keyword_rest_parameter" || kind == "block_parameter"
 	case "c", "cpp":
-		return kind == "variadic_parameter" || kind == "parameter_declaration" && false // C/C++ use `...` tokens, handled below
+		return kind == "variadic_parameter"
 	}
 	return false
 }
@@ -458,95 +331,6 @@ func paramType(p *tspack.Node, source []byte, lang string) string {
 	return "unknown"
 }
 
-// extractParentClass returns the superclass name of a class declaration n, or
-// "" when the class declares no superclass. The superclass lives in a
-// `superclass` named child (TS/JS, Java via `superclass`, Python via
-// `superclasses`/`argument_list`), in a `base_class` (Ruby), or in an
-// `extends` clause. We try the common named children and fall back to a
-// substring scan of the source for an `extends`/`inherits` clause when the
-// grammar does not expose a named field.
-func extractParentClass(n *tspack.Node, source []byte, lang string) string {
-	if n == nil {
-		return ""
-	}
-
-	// 1. `superclass` field — TS/JS/Java grammars expose this.
-	if sc := n.ChildByFieldName("superclass"); sc != nil {
-		if s := strings.TrimSpace(nodeText(sc, source)); s != "" {
-			return stripGenericArgs(s)
-		}
-	}
-
-	// 2. Named children with kind `superclass` / `superclasses` / `base_class`.
-	count := n.NamedChildCount()
-	for i := uint(0); i < count; i++ {
-		c := n.NamedChild(uint32(i))
-		if c == nil {
-			continue
-		}
-		switch c.Kind() {
-		case "superclass", "superclasses", "base_class", "extends_clause", "inheritance_specifier":
-			if s := strings.TrimSpace(nodeText(c, source)); s != "" {
-				return stripGenericArgs(firstIdentifier(s))
-			}
-		}
-	}
-
-	return ""
-}
-
-// enclosingClassName walks n's parent chain and returns the name of the
-// nearest enclosing class declaration, or "" when n is not inside a class.
-// The class kinds are language-specific (see kindMaps); we match by the
-// SymbolKind the parent would emit rather than by raw node kind so this works
-// uniformly across grammars.
-//
-// The walk is depth-bounded (maxParentDepth) as a defensive guard: the
-// tspack Node.Parent() binding returns a non-nil pointer for the root's
-// parent rather than nil, so a naive `for cur != nil` loop would never
-// terminate. The depth cap is well above any realistic nesting depth and
-// breaks the loop safely when the chain reaches the root.
-func enclosingClassName(n *tspack.Node, source []byte, lang string) string {
-	if n == nil {
-		return ""
-	}
-	kindMap, ok := kindMaps[lang]
-	if !ok {
-		return ""
-	}
-	// visited guards against malformed self-referential parent pointers
-	// by breaking cycles. We key on (StartByte, EndByte) which uniquely
-	// identifies a node within a single tree.
-	visited := make(map[uint]struct{})
-	cur := n.Parent()
-	for depth := 0; cur != nil && depth < maxParentDepth; depth++ {
-		start, end := cur.StartByte(), cur.EndByte()
-		key := start*31 + end
-		if _, seen := visited[key]; seen {
-			break
-		}
-		visited[key] = struct{}{}
-		// A null/invalid parent (tspack returns a zeroed node for the root's
-		// parent) is detected by a zero byte range; stop the walk there.
-		if start == 0 && end == 0 {
-			break
-		}
-		if sk, isDecl := kindMap[cur.Kind()]; isDecl && sk == symbol.KindClass {
-			if name := extractName(cur, source, symbol.KindClass); name != "" {
-				return name
-			}
-		}
-		cur = cur.Parent()
-	}
-	return ""
-}
-
-// maxParentDepth caps how far up the parent chain enclosingClassName walks.
-// It is a defensive bound, not a meaningful limit: real nesting depths are in
-// the dozens at most, so 1000 is effectively unbounded while guaranteeing
-// termination even when the binding returns a non-nil null parent.
-const maxParentDepth = 1000
-
 // stripGenericArgs strips a trailing `<...>` generic-argument list from a
 // type name so `List<int>` is recorded as `List`. The mismatch engine
 // compares parameter types lexically; collapsing generics keeps the
@@ -571,96 +355,6 @@ func firstIdentifier(s string) string {
 		}
 	}
 	return strings.TrimSpace(s)
-}
-
-// extractName resolves a declaration's name. It tries the grammar-defined
-// "name" field first (most reliable across grammars), then falls back to the
-// first named identifier child, then to import-specific string extraction.
-func extractName(n *tspack.Node, source []byte, kind symbol.SymbolKind) string {
-	// 1. Grammar "name" field — works for Go type_spec, Java/TS class & method,
-	//    Ruby class/module, PHP class/method, etc.
-	if nameNode := n.ChildByFieldName("name"); nameNode != nil {
-		if s := nodeText(nameNode, source); s != "" {
-			return s
-		}
-	}
-
-	// 2. Imports: pull the imported path from the string / scoped identifier
-	//    child so the symbol name is the module, not a brace list.
-	if kind == symbol.KindImport {
-		if s := extractImportName(n, source); s != "" {
-			return s
-		}
-	}
-
-	// 3. First named identifier child (covers C/C++ where the name lives in a
-	//    declarator, and Python/Rust simple imports).
-	for i := uint(0); i < n.NamedChildCount(); i++ {
-		c := n.NamedChild(uint32(i))
-		if c == nil {
-			continue
-		}
-		if _, ok := identifierKinds[c.Kind()]; ok {
-			if s := nodeText(c, source); s != "" {
-				return s
-			}
-		}
-	}
-
-	// 4. Final fallback: empty name. Better than a wrong one.
-	return ""
-}
-
-// extractImportName searches n's subtree for the imported path and returns
-// it with surrounding quotes/braces trimmed. Strings are preferred over
-// identifiers because, for languages with both a local binding and a source
-// path (e.g. `import { foo } from 'bar'`), the path is the dependency
-// identifier Fathom cares about. Languages where the path IS an identifier
-// (Python `import os`, Rust `use std::io`, Java `import java.util.List`)
-// fall back to the identifier branch.
-func extractImportName(n *tspack.Node, source []byte) string {
-	// 1. Prefer string-literal paths (Go, TS/JS, C/C++ #include, PHP require).
-	var found string
-	var walkStrings func(*tspack.Node) bool
-	walkStrings = func(node *tspack.Node) bool {
-		if node == nil {
-			return false
-		}
-		if _, ok := stringKinds[node.Kind()]; ok {
-			found = stripQuotes(nodeText(node, source))
-			return true
-		}
-		for i := uint(0); i < node.NamedChildCount(); i++ {
-			if walkStrings(node.NamedChild(uint32(i))) {
-				return true
-			}
-		}
-		return false
-	}
-	if walkStrings(n) {
-		return found
-	}
-
-	// 2. Fall back to the first path-like identifier (Python dotted_name,
-	//    Rust scoped_identifier, Java scoped_identifier).
-	var walkIds func(*tspack.Node) bool
-	walkIds = func(node *tspack.Node) bool {
-		if node == nil {
-			return false
-		}
-		if _, ok := identifierKinds[node.Kind()]; ok {
-			found = nodeText(node, source)
-			return true
-		}
-		for i := uint(0); i < node.NamedChildCount(); i++ {
-			if walkIds(node.NamedChild(uint32(i))) {
-				return true
-			}
-		}
-		return false
-	}
-	walkIds(n)
-	return found
 }
 
 // nodeText returns the source slice of n, or "" if the byte range is out of
@@ -692,9 +386,10 @@ func stripQuotes(s string) string {
 	return s
 }
 
-// errUnsupportedLanguage is returned by ExtractSymbols when no kind map is
-// registered for the requested language. It is a typed error so callers can
-// distinguish "unsupported" from "parser load failed".
+// errUnsupportedLanguage is returned by callers that need to distinguish
+// "unsupported" from "parser load failed". The pack itself returns a language
+// error from Process(); this type is kept for compatibility with existing
+// call sites and tests.
 type errUnsupportedLanguage string
 
 func (e errUnsupportedLanguage) Error() string { return "parser: unsupported language: " + string(e) }
@@ -705,75 +400,4 @@ type errParseFailed string
 
 func (e errParseFailed) Error() string {
 	return "parser: parse produced no tree for language: " + string(e)
-}
-
-// containsKind reports whether n has any direct named child whose kind
-// matches. It is a shallow check used to classify wrapper declarations
-// (e.g. Go type_spec → interface_type) without descending into a full walk.
-func containsKind(n *tspack.Node, kind string) bool {
-	if n == nil {
-		return false
-	}
-	count := n.NamedChildCount()
-	for i := uint(0); i < count; i++ {
-		if c := n.NamedChild(uint32(i)); c != nil && c.Kind() == kind {
-			return true
-		}
-	}
-	return false
-}
-
-// exportName derives a name for an export_statement. It prefers the name of
-// the first nested declaration (function/class/etc.); falls back to
-// "default" when the export is a default export; otherwise returns the
-// fallback provided by the caller (usually empty).
-func exportName(n *tspack.Node, source []byte, fallback string) string {
-	for i := uint(0); i < n.NamedChildCount(); i++ {
-		c := n.NamedChild(uint32(i))
-		if c == nil {
-			continue
-		}
-		// The first named child of an export_statement is the exported
-		// declaration (function_declaration, class_declaration, etc.).
-		if name := extractName(c, source, kindForNode(c)); name != "" {
-			return name
-		}
-	}
-	if hasNamedChild(n, "default") || fallback != "" {
-		if fallback == "" {
-			return "default"
-		}
-		return fallback
-	}
-	return ""
-}
-
-// hasNamedChild reports whether n has a direct named child with the given
-// kind. Used to detect `default` exports whose child kind is literally
-// "default".
-func hasNamedChild(n *tspack.Node, kind string) bool {
-	count := n.NamedChildCount()
-	for i := uint(0); i < count; i++ {
-		if c := n.NamedChild(uint32(i)); c != nil && c.Kind() == kind {
-			return true
-		}
-	}
-	return false
-}
-
-// kindForNode returns the Fathom symbol kind a node would be mapped to in its
-// language, or the empty string when the node is not a declaration. It is a
-// read-only lookup used by exportName to classify the inner declaration of
-// an export_statement without emitting it.
-func kindForNode(n *tspack.Node) symbol.SymbolKind {
-	// We do not know the language here; search every kind map for the node
-	// kind. This is O(languages) but only runs on export children, which are
-	// few, so the cost is negligible.
-	k := n.Kind()
-	for _, m := range kindMaps {
-		if sk, ok := m[k]; ok {
-			return sk
-		}
-	}
-	return ""
 }

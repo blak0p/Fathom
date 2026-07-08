@@ -560,8 +560,8 @@ func TestQueryExtractorContainingSymbolFileScope(t *testing.T) {
 // ---------- Query capture-name map (unit) ----------
 
 // TestInitRegistersBundledLanguages verifies the package init() registers a
-// queryExtractor for every language in bundledQueryLanguages that has a real
-// tags.scm bundled in this build.
+// queryExtractor for every language the pack ships a tags.scm for (the init()
+// now iterates tspack.AvailableLanguages rather than a hand-rolled list).
 //
 // We don't rely on leftover init() state because earlier tests in this file
 // call resetRegistry and may leave the registry empty. Instead we rebuild
@@ -571,7 +571,7 @@ func TestInitRegistersBundledLanguages(t *testing.T) {
 	resetRegistry()
 	defer resetRegistry()
 	// Re-run the init() registration manually so the test is hermetic.
-	for _, lang := range bundledQueryLanguages {
+	for _, lang := range tspack.AvailableLanguages() {
 		if tspack.GetTagsQuery(lang) == nil {
 			continue
 		}

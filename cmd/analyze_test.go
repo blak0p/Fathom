@@ -249,14 +249,14 @@ func TargetFunc(x int) {}
 	}
 
 	htmlStr := string(htmlContent)
-	if !strings.Contains(htmlStr, "REVIEW") {
-		t.Errorf("expected Verdict 'REVIEW' in HTML report, got: %s", htmlStr)
+	if !strings.Contains(htmlStr, "elevated") {
+		t.Errorf("expected risk score 'elevated' in HTML report, got: %s", htmlStr)
 	}
-	if !strings.Contains(htmlStr, "TargetFunc") {
-		t.Errorf("expected target symbol 'TargetFunc' in HTML report")
+	if !strings.Contains(htmlStr, "1 direct") {
+		t.Errorf("expected blast radius count '1 direct' in HTML report")
 	}
-	if !strings.Contains(htmlStr, "direct_call") {
-		t.Errorf("expected dependency type 'direct_call' in HTML report")
+	if !strings.Contains(htmlStr, "caller.go") {
+		t.Errorf("expected affected file 'caller.go' in HTML report")
 	}
 }
 

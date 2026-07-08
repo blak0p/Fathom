@@ -147,6 +147,37 @@ func TestExtractSymbols(t *testing.T) {
 				{Kind: symbol.KindFunction, Name: ""}, // anonymous arrow function
 			},
 		},
+		{
+			name:    "ruby sample",
+			lang:    "ruby",
+			fixture: "testdata/sample.rb",
+			want: []symbol.Symbol{
+				{Kind: symbol.KindClass, Name: "Greeter"},
+				{Kind: symbol.KindFunction, Name: "hello"},
+			},
+		},
+		{
+			name:    "php sample",
+			lang:    "php",
+			fixture: "testdata/sample.php",
+			want: []symbol.Symbol{
+				{Kind: symbol.KindClass, Name: "UserController"},
+				{Kind: symbol.KindFunction, Name: "show"},
+			},
+		},
+		{
+			name:    "c sample",
+			lang:    "c",
+			fixture: "testdata/sample.c",
+			want: []symbol.Symbol{
+				// The C grammar's Structure emits a Function but does not
+				// surface the declarator name, so the symbol carries an empty
+				// name. The struct is not emitted by the pack's C Structure
+				// (struct_specifier is not a StructureKind), and C has no
+				// Symbols fallback, so we expect a single nameless function.
+				{Kind: symbol.KindFunction, Name: ""},
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -261,17 +292,20 @@ func TestParseFile(t *testing.T) {
 }
 
 // TestParseFileUnknownExtension checks that ParseFile refuses files it cannot
-// detect rather than returning a misleading empty result.
+// detect rather than returning a misleading empty result. The extension must be
+// one the language pack does not recognize; common dev extensions (md, yaml,
+// json, etc.) are now detected by the 306-language pack and are NOT suitable
+// sentinels.
 func TestParseFileUnknownExtension(t *testing.T) {
 	p := New()
 	// Write a temp file with an unsupported extension.
 	dir := t.TempDir()
-	path := filepath.Join(dir, "notes.md")
+	path := filepath.Join(dir, "notes.qqq")
 	if err := os.WriteFile(path, []byte("# hi"), 0644); err != nil {
 		t.Fatalf("write temp: %v", err)
 	}
 	if _, err := p.ParseFile(path); err == nil {
-		t.Fatal("ParseFile(.md): expected error for unsupported extension, got nil")
+		t.Fatal("ParseFile(.qqq): expected error for unsupported extension, got nil")
 	}
 }
 

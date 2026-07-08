@@ -485,33 +485,14 @@ func classifyArgType(kind string) string {
 	return "unknown"
 }
 
-// bundledQueryLanguages is the set of languages for which the language pack
-// ships a tags.scm. We register a queryExtractor for each at package init()
-//
-// The set is intentionally curated (not derived from AvailableLanguages at
-// init) because some pack languages ship no tags.scm at all, and registering
-// an extractor for a language with no query would only ever produce
-// errNoTagsQuery when invoked. Curating keeps the registry honest: only
-// languages with a real bundled tags.scm appear in Languages().
-var bundledQueryLanguages = []string{
-	"go",
-	"python",
-	"javascript",
-	"typescript",
-	"tsx",
-	"rust",
-	"java",
-	"c",
-	"cpp",
-	"ruby",
-	"php",
-}
-
 func init() {
-	for _, lang := range bundledQueryLanguages {
-		// Only register when the pack actually bundles a tags.scm for the
-		// language in this build. This keeps the registry accurate across
-		// builds that include different grammar subsets.
+	// Register a queryExtractor for every language the pack ships a tags.scm
+	// for, not just a curated subset. This lets refs extraction work for all
+	// 306-pack languages that have a bundled tags query without maintaining a
+	// hand-rolled list. Languages without a tags.scm are skipped so the
+	// registry stays honest: Languages() only reports languages that can
+	// actually produce references.
+	for _, lang := range tspack.AvailableLanguages() {
 		if tspack.GetTagsQuery(lang) == nil {
 			continue
 		}

@@ -4,8 +4,9 @@
 // The package is organized around three concerns:
 //   - language.go: language detection helpers and the extension ↔ language
 //     reference table.
-//   - extractor.go: the tree-sitter CST walker that maps grammar node kinds
-//     to Fathom symbol kinds.
+//   - extractor.go + process_adapter.go: the symbol extraction pipeline that
+//     maps the language pack's Process() result into Fathom symbols and runs
+//     a second parse for function parameter metadata.
 //   - parser.go: the Parser interface and its tree-sitter implementation that
 //     ties detection, parsing, and extraction together.
 package parser
@@ -55,23 +56,6 @@ var extToLang = map[string]string{
 	"rb": "ruby",
 	// PHP
 	"php": "php",
-}
-
-// CommonLanguageGroups names bundles of languages that are typically fetched
-// together. They mirror the group names exposed by the language pack manifest
-// and are convenient arguments for DownloadParsers.
-const (
-	GroupWeb       = "web"
-	GroupSystems   = "systems"
-	GroupScripting = "scripting"
-)
-
-// CommonLanguages lists the languages Fathom explicitly supports in its
-// extractor. The set is intentionally small and curated — adding a language
-// here implies a kind map entry in extractor.go.
-var CommonLanguages = []string{
-	"go", "javascript", "typescript", "tsx", "python", "rust",
-	"java", "c", "cpp", "ruby", "php",
 }
 
 // SupportedExtensions returns the file extensions (without leading dot) that

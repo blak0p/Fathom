@@ -105,10 +105,11 @@ func (p treeSitterParser) ParseFile(path string) ([]symbol.Symbol, error) {
 }
 
 // ParseFileWithRefs parses path, detects its language, and returns both
-// symbols and references. The file is parsed once for symbols (via
-// tree-sitter language pack) and references are extracted via the refs
-// package's tags.scm engine. Reference extraction failure is non-fatal:
-// symbols are still returned with a warning log.
+// symbols and references. Symbols are extracted via the language pack's
+// Process() API (see ExtractSymbols); references are extracted via the refs
+// package's tags.scm engine over a separate tree-sitter parse. Reference
+// extraction failure is non-fatal: symbols are still returned with a warning
+// log.
 func (p treeSitterParser) ParseFileWithRefs(path string) ([]symbol.Symbol, []refs.Reference, error) {
 	lang, ok := p.DetectLanguage(path)
 	if !ok {
@@ -120,38 +121,31 @@ func (p treeSitterParser) ParseFileWithRefs(path string) ([]symbol.Symbol, []ref
 		return nil, nil, fmt.Errorf("parser: read %s: %w", path, err)
 	}
 
-	kindMap, ok := kindMaps[lang]
-	if !ok {
-		return nil, nil, errUnsupportedLanguage(lang)
-	}
-
-	tsp, err := tspack.GetParser(lang)
+	// Symbols: language pack Process() (Structure + Symbols + Imports + Exports
+	// merged + second parse for function params).
+	symbols, err := ExtractSymbols(source, lang)
 	if err != nil {
-		return nil, nil, err
-	}
-	defer tsp.Free()
-
-	tree := tsp.ParseBytes(source)
-	if tree == nil {
-		return nil, nil, errParseFailed(lang)
-	}
-	defer tree.Free()
-
-	root := tree.RootNode()
-	if root == nil {
-		return nil, nil, nil
+		return nil, nil, fmt.Errorf("parser: extract %s: %w", path, err)
 	}
 
-	// Extract symbols from the parsed root (shared with ExtractSymbols).
-	symbols := extractSymbolsFromRoot(root, source, lang, kindMap)
-
-	// Extract references via the refs package.
-	refExtractor, hasRefs := refs.Get(lang)
+	// References: separate tree-sitter parse for the tags.scm query engine.
 	var references []refs.Reference
-	if hasRefs {
-		references, err = refExtractor.ExtractReferences(root, source)
-		if err != nil {
-			zap.L().Warn("reference extraction failed; indexing symbols only",
+	if refExtractor, hasRefs := refs.Get(lang); hasRefs {
+		tsp, err := tspack.GetParser(lang)
+		if err == nil {
+			defer tsp.Free()
+			if tree := tsp.ParseBytes(source); tree != nil {
+				defer tree.Free()
+				if root := tree.RootNode(); root != nil {
+					references, err = refExtractor.ExtractReferences(root, source)
+					if err != nil {
+						zap.L().Warn("reference extraction failed; indexing symbols only",
+							zap.String("path", path), zap.String("lang", lang), zap.Error(err))
+					}
+				}
+			}
+		} else {
+			zap.L().Warn("reference parser unavailable; indexing symbols only",
 				zap.String("path", path), zap.String("lang", lang), zap.Error(err))
 		}
 	}
@@ -175,38 +169,31 @@ func (p treeSitterParser) ParseBytesWithRefs(path string, source []byte) ([]symb
 		return nil, nil, fmt.Errorf("parser: unsupported file extension: %s", filepath.Ext(path))
 	}
 
-	kindMap, ok := kindMaps[lang]
-	if !ok {
-		return nil, nil, errUnsupportedLanguage(lang)
-	}
-
-	tsp, err := tspack.GetParser(lang)
+	// Symbols: language pack Process() (Structure + Symbols + Imports + Exports
+	// merged + second parse for function params).
+	symbols, err := ExtractSymbols(source, lang)
 	if err != nil {
-		return nil, nil, err
-	}
-	defer tsp.Free()
-
-	tree := tsp.ParseBytes(source)
-	if tree == nil {
-		return nil, nil, errParseFailed(lang)
-	}
-	defer tree.Free()
-
-	root := tree.RootNode()
-	if root == nil {
-		return nil, nil, nil
+		return nil, nil, fmt.Errorf("parser: extract %s: %w", path, err)
 	}
 
-	// Extract symbols from the parsed root (shared with ExtractSymbols).
-	symbols := extractSymbolsFromRoot(root, source, lang, kindMap)
-
-	// Extract references via the refs package.
-	refExtractor, hasRefs := refs.Get(lang)
+	// References: separate tree-sitter parse for the tags.scm query engine.
 	var references []refs.Reference
-	if hasRefs {
-		references, err = refExtractor.ExtractReferences(root, source)
-		if err != nil {
-			zap.L().Warn("reference extraction failed; indexing symbols only",
+	if refExtractor, hasRefs := refs.Get(lang); hasRefs {
+		tsp, err := tspack.GetParser(lang)
+		if err == nil {
+			defer tsp.Free()
+			if tree := tsp.ParseBytes(source); tree != nil {
+				defer tree.Free()
+				if root := tree.RootNode(); root != nil {
+					references, err = refExtractor.ExtractReferences(root, source)
+					if err != nil {
+						zap.L().Warn("reference extraction failed; indexing symbols only",
+							zap.String("path", path), zap.String("lang", lang), zap.Error(err))
+					}
+				}
+			}
+		} else {
+			zap.L().Warn("reference parser unavailable; indexing symbols only",
 				zap.String("path", path), zap.String("lang", lang), zap.Error(err))
 		}
 	}
